@@ -22,7 +22,7 @@
     --accent: #22d3ee;
     --front: #22d3ee;   /* 前场（上）*/
     --mid: #facc15;     /* 中场（左右）*/
-    --back: #f472b6;    /* 后场（下）*/
+    --back: #a78bfa;    /* 后场（下）；不用粉色，免得和红色反向箭头混淆 */
     --danger: #f87171;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -68,8 +68,8 @@
   .dir { border: 2px solid var(--line); background: var(--bg); border-radius: 10px; padding: 12px 6px; cursor: pointer; font-size: 15px; font-weight: 600; opacity: .45; transition: .15s; }
   .dir.on { opacity: 1; border-color: currentColor; }
   .swatch { display: inline-block; width: 1.6em; height: 1.1em; border-radius: 4px; vertical-align: -0.2em; margin: 0 2px;
-    background: #ef4444; position: relative; }
-  .swatch::after { content: "↗"; position: absolute; inset: 0; color: #000; font-weight: 900; font-size: .85em; line-height: 1.3em; text-align: center; }
+    background: #000; position: relative; }
+  .swatch::after { content: "↗"; position: absolute; inset: 0; color: #ef4444; font-weight: 900; font-size: .85em; line-height: 1.3em; text-align: center; }
   .dir[data-zone="front"] { color: var(--front); }
   .dir[data-zone="mid"] { color: var(--mid); }
   .dir[data-zone="back"] { color: var(--back); }
@@ -169,7 +169,7 @@
       <label for="allowRepeat">允许连续出现相同方向</label>
       <label class="switch"><input type="checkbox" id="allowRepeat"><span></span></label>
     </div>
-    <p class="hint">颜色区分前/中/后场：青色=前场，黄色=两侧，粉色=后场，余光也能秒认。</p>
+    <p class="hint">颜色区分前/中/后场：青色=前场，黄色=两侧，紫色=后场，余光也能秒认。</p>
     <div class="error hidden" id="dirErr"></div>
   </section>
 
@@ -184,7 +184,7 @@
         <label for="inhibitPct">出现概率</label>
         <div class="num" data-for="inhibitPct"><button type="button" data-step="-5">−</button><input id="inhibitPct" type="number" inputmode="numeric" step="1" min="5" max="80"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
       </div>
-      <p class="hint">出现 <span class="swatch"></span> <b>红底黑箭头</b> 时，要往箭头的<b>反方向</b>跑：左上↔右下、右上↔左下、左↔右。练的是"刹住本能反应"。</p>
+      <p class="hint">出现 <span class="swatch"></span> <b>红色箭头</b> 时，要往箭头的<b>反方向</b>跑：左上↔右下、右上↔左下、左↔右。练的是"刹住本能反应"。</p>
     </div>
     <div class="row">
       <label for="fake">假动作</label>
@@ -276,11 +276,11 @@
     DL: { name: '左下', sx: -1, sy:  1, zone: 'back'  },
     DR: { name: '右下', sx:  1, sy:  1, zone: 'back'  },
   };
-  const ZONE_COLOR = { front: '#22d3ee', mid: '#facc15', back: '#f472b6' };
+  const ZONE_COLOR = { front: '#22d3ee', mid: '#facc15', back: '#a78bfa' };
   const MIRROR = { UL: 'UR', UR: 'UL', L: 'R', R: 'L', DL: 'DR', DR: 'DL' };
   const OPP = { UL: 'DR', DR: 'UL', UR: 'DL', DL: 'UR', L: 'R', R: 'L' }; // 反向指令：箭头指向的对角
   const DIAG = ['UL', 'UR', 'DL', 'DR'];                                   // 假动作只在斜向之间发生
-  const INHIBIT_BG = '#ef4444';
+  const INHIBIT_COLOR = '#ef4444'; // 反向指令：箭头变红，背景不变
 
   // ---------- 设置 ----------
   const DEFAULTS = {
@@ -445,8 +445,7 @@
     const pts = rot.map(([x, y]) => `${(w / 2 + x * k).toFixed(1)},${(h / 2 + y * k).toFixed(1)}`).join(' ');
     const poly = $('arrowPoly');
     poly.setAttribute('points', pts);
-    poly.setAttribute('fill', inhibit ? '#000' : ZONE_COLOR[d.zone]);
-    $('train').style.background = inhibit ? INHIBIT_BG : '#000';
+    poly.setAttribute('fill', inhibit ? INHIBIT_COLOR : ZONE_COLOR[d.zone]);
     $('arrowG').style.transformOrigin = `${w / 2}px ${h / 2}px`;
   }
 
@@ -503,7 +502,6 @@
     Object.assign(T, { active: true, paused: false, current: null, last: null, n: 0, tally: {}, pausedTotal: 0,
       pending: null, shown: null, nInhibit: 0, nFake: 0 });
     $('arrowPoly').setAttribute('points', '');
-    $('train').style.background = '#000';
     ['pauseOverlay', 'doneOverlay'].forEach(id => $(id).classList.add('hidden'));
     countdown();
   }
@@ -569,7 +567,7 @@
 
   function screenDir(key) { return S.mirror ? MIRROR[key] : key; }
 
-  // key = 箭头指向（玩家视角），inhibit = 红底反向，real = 是否最终方向（假动作为 false）
+  // key = 箭头指向（玩家视角），inhibit = 红色箭头反向，real = 是否最终方向（假动作为 false）
   function showArrow(key, inhibit, real) {
     T.shown = { key, inhibit };
     drawArrow(screenDir(key), inhibit);
