@@ -119,6 +119,28 @@
   <p class="sub">把手机放在球场中央，跟着全屏箭头启动、移动、回位。</p>
 
   <section class="card">
+    <h2>训练模式</h2>
+    <div class="seg" id="trainSeg">
+      <button data-train="standard">六点步伐</button>
+      <button data-train="start">启动练习</button>
+    </div>
+    <p class="hint" id="trainHint"></p>
+  </section>
+
+  <section class="card" id="startCard">
+    <h2>启动练习</h2>
+    <div class="row">
+      <label for="startI">每隔</label>
+      <div class="num" data-for="startI"><button type="button" data-step="-0.1">−</button><input id="startI" type="number" inputmode="decimal" step="0.1" min="0.5" max="3"><button type="button" data-step="0.1">+</button><span class="unit">秒</span></div>
+    </div>
+    <div class="row">
+      <label for="startInhibitPct">红色（反向）概率</label>
+      <div class="num" data-for="startInhibitPct"><button type="button" data-step="-5">−</button><input id="startInhibitPct" type="number" inputmode="numeric" step="1" min="0" max="80"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
+    </div>
+    <p class="hint">只练第一步启动：看到箭头立刻蹬出第一步再回中。<b style="color:var(--mid)">黄色</b> = 往箭头方向，<b style="color:#ef4444">红色</b> = 往反方向。背景始终是黑色，不做假动作。</p>
+  </section>
+
+  <section class="card" id="presetCard">
     <h2>快速预设</h2>
     <div class="presets">
       <button data-preset="easy"><b>入门</b>固定 3 秒</button>
@@ -127,7 +149,7 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="intervalCard">
     <h2>方向切换间隔</h2>
     <div class="seg" id="modeSeg">
       <button data-mode="fixed">固定间隔</button>
@@ -169,11 +191,11 @@
       <label for="allowRepeat">允许连续出现相同方向</label>
       <label class="switch"><input type="checkbox" id="allowRepeat"><span></span></label>
     </div>
-    <p class="hint">颜色区分前/中/后场：青色=前场，黄色=两侧，紫色=后场，余光也能秒认。</p>
+    <p class="hint" id="zoneHint">颜色区分前/中/后场：青色=前场，黄色=两侧，紫色=后场，余光也能秒认。</p>
     <div class="error hidden" id="dirErr"></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="inhibitCard">
     <h2>神经抑制 & 假动作</h2>
     <div class="row">
       <label for="inhibit">反向指令（抑制冲动）</label>
@@ -289,11 +311,12 @@
     limit: 'none', count: 30, duration: 60, countdown: 3,
     beep: true, voice: false, vibrate: true, mirror: false,
     inhibit: false, inhibitPct: 25, fake: false, fakePct: 30, fakeDur: 0.3,
+    trainMode: 'standard', startI: 1, startInhibitPct: 30,
   };
   const PRESETS = {
-    easy: { mode: 'fixed', fixed: 3 },
-    mid:  { mode: 'fixed', fixed: 2 },
-    hard: { mode: 'random', minI: 1.2, maxI: 2 },
+    easy: { trainMode: 'standard', mode: 'fixed', fixed: 3 },
+    mid:  { trainMode: 'standard', mode: 'fixed', fixed: 2 },
+    hard: { trainMode: 'standard', mode: 'random', minI: 1.2, maxI: 2 },
   };
   const KEY = 'sixPointFootwork.v1';
   let S = load();
@@ -305,10 +328,17 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
 
   const $ = id => document.getElementById(id);
-  const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown', 'inhibitPct', 'fakePct', 'fakeDur'];
+  const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown', 'inhibitPct', 'fakePct', 'fakeDur', 'startI', 'startInhibitPct'];
   const BOOL_FIELDS = ['allowRepeat', 'beep', 'voice', 'vibrate', 'mirror', 'inhibit', 'fake'];
 
   function render() {
+    const startMode = S.trainMode === 'start';
+    document.querySelectorAll('#trainSeg button').forEach(b => b.classList.toggle('on', b.dataset.train === S.trainMode));
+    $('trainHint').textContent = startMode
+      ? '固定节奏快速换向，箭头只有黄色（正向）和红色（反向）两种。'
+      : '完整六点步伐：可调间隔、按区域分色、反向指令与假动作。';
+    $('startCard').classList.toggle('hidden', !startMode);
+    ['presetCard', 'intervalCard', 'inhibitCard', 'zoneHint'].forEach(id => $(id).classList.toggle('hidden', startMode));
     document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
     $('fixedBox').classList.toggle('hidden', S.mode !== 'fixed');
     $('randomBox').classList.toggle('hidden', S.mode !== 'random');
@@ -334,7 +364,7 @@
   function validate() {
     let ok = true;
     const ie = $('intervalErr'), de = $('dirErr');
-    if (S.mode === 'random' && S.minI > S.maxI) { ie.textContent = '最短间隔不能大于最长间隔'; ie.classList.remove('hidden'); ok = false; }
+    if (S.trainMode !== 'start' && S.mode === 'random' && S.minI > S.maxI) { ie.textContent = '最短间隔不能大于最长间隔'; ie.classList.remove('hidden'); ok = false; }
     else ie.classList.add('hidden');
     if (S.dirs.length === 0) { de.textContent = '至少启用一个方向'; de.classList.remove('hidden'); ok = false; }
     else if (S.dirs.length === 1 && !S.allowRepeat) { de.textContent = '只启用一个方向时，需要允许重复'; de.classList.remove('hidden'); ok = false; }
@@ -345,6 +375,7 @@
   }
 
   document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => { S.mode = b.dataset.mode; save(); render(); });
+  document.querySelectorAll('#trainSeg button').forEach(b => b.onclick = () => { S.trainMode = b.dataset.train; save(); render(); });
   document.querySelectorAll('#limitSeg button').forEach(b => b.onclick = () => { S.limit = b.dataset.limit; save(); render(); });
   document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { Object.assign(S, PRESETS[b.dataset.preset]); save(); render(); });
   document.querySelectorAll('.dir').forEach(b => b.onclick = () => {
@@ -426,8 +457,8 @@
     const svg = $('arrowSvg');
     svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
     const d = DIRS[dirKey];
-    // 斜向：横屏固定 45°（对准屏幕角会太平，看着像左右）；竖屏对准屏幕的角
-    const diag45 = d.sx && d.sy && w > h;
+    // 斜向：横竖屏都固定 45°（对准屏幕角的话横屏太平、竖屏太陡）
+    const diag45 = d.sx && d.sy;
     const vx = d.sx * (d.sy && !diag45 ? w : 1), vy = d.sy * (d.sx && !diag45 ? h : 1);
     const ang = Math.atan2(vy, vx);
     // 竖屏里的左/右（或横屏里的…）长度受限，就用"更胖"的箭头把垂直方向的空间吃满
@@ -445,7 +476,8 @@
     const pts = rot.map(([x, y]) => `${(w / 2 + x * k).toFixed(1)},${(h / 2 + y * k).toFixed(1)}`).join(' ');
     const poly = $('arrowPoly');
     poly.setAttribute('points', pts);
-    poly.setAttribute('fill', inhibit ? INHIBIT_COLOR : ZONE_COLOR[d.zone]);
+    // 启动练习：正向一律黄色；六点步伐：按区域分色。反向都是红色
+    poly.setAttribute('fill', inhibit ? INHIBIT_COLOR : S.trainMode === 'start' ? ZONE_COLOR.mid : ZONE_COLOR[d.zone]);
     $('arrowG').style.transformOrigin = `${w / 2}px ${h / 2}px`;
   }
 
@@ -461,6 +493,7 @@
   const pickFrom = arr => arr[Math.floor(rand() * arr.length)];
 
   function nextInterval() {
+    if (S.trainMode === 'start') return S.startI * 1000;
     if (S.mode === 'fixed') return S.fixed * 1000;
     const lo = Math.min(S.minI, S.maxI), hi = Math.max(S.minI, S.maxI);
     return (lo + Math.random() * (hi - lo)) * 1000;
@@ -539,13 +572,14 @@
     T.n++;
     T.tally[T.current] = (T.tally[T.current] || 0) + 1;
 
-    const inhibit = S.inhibit && chance(S.inhibitPct);
+    const startMode = S.trainMode === 'start';
+    const inhibit = startMode ? chance(S.startInhibitPct) : S.inhibit && chance(S.inhibitPct);
     const shownKey = inhibit ? OPP[T.current] : T.current; // 反向时箭头指向对角
     if (inhibit) T.nInhibit++;
 
     // 假动作：真实箭头是斜向时才可能出现，先闪另一个斜向
     let fakeKey = null;
-    if (S.fake && DIAG.includes(shownKey) && chance(S.fakePct)) {
+    if (!startMode && S.fake && DIAG.includes(shownKey) && chance(S.fakePct)) {
       let pool = DIAG.filter(k => k !== shownKey && S.dirs.includes(k));
       if (!pool.length) pool = DIAG.filter(k => k !== shownKey);
       fakeKey = pickFrom(pool);
@@ -607,7 +641,9 @@
     if (S.beep) { beep(784, 0.15); setTimeout(() => beep(1046, 0.3), 180); }
     if (S.voice) speak('训练完成');
     buzz([100, 80, 200]);
-    const extra = [S.inhibit ? `反向 ${T.nInhibit} 次` : '', S.fake ? `假动作 ${T.nFake} 次` : ''].filter(Boolean);
+    const startMode = S.trainMode === 'start';
+    const extra = [(startMode ? S.startInhibitPct > 0 : S.inhibit) ? `反向 ${T.nInhibit} 次` : '',
+      !startMode && S.fake ? `假动作 ${T.nFake} 次` : ''].filter(Boolean);
     $('doneSummary').textContent = [`共 ${T.n} 次`, `用时 ${fmtTime(elapsed() / 1000)}`, ...extra].join(' · ');
     $('doneStats').innerHTML = Object.keys(DIRS).filter(k => S.dirs.includes(k))
       .map(k => `<div style="color:${ZONE_COLOR[DIRS[k].zone]}">${DIRS[k].name}<b>${T.tally[k] || 0}</b></div>`).join('');
