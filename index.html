@@ -67,6 +67,9 @@
   .court::after { content: "📱"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 20px; pointer-events: none; }
   .dir { border: 2px solid var(--line); background: var(--bg); border-radius: 10px; padding: 12px 6px; cursor: pointer; font-size: 15px; font-weight: 600; opacity: .45; transition: .15s; }
   .dir.on { opacity: 1; border-color: currentColor; }
+  .swatch { display: inline-block; width: 1.6em; height: 1.1em; border-radius: 4px; vertical-align: -0.2em; margin: 0 2px;
+    background: #ef4444; position: relative; }
+  .swatch::after { content: "↗"; position: absolute; inset: 0; color: #000; font-weight: 900; font-size: .85em; line-height: 1.3em; text-align: center; }
   .dir[data-zone="front"] { color: var(--front); }
   .dir[data-zone="mid"] { color: var(--mid); }
   .dir[data-zone="back"] { color: var(--back); }
@@ -171,6 +174,36 @@
   </section>
 
   <section class="card">
+    <h2>神经抑制 & 假动作</h2>
+    <div class="row">
+      <label for="inhibit">反向指令（抑制冲动）</label>
+      <label class="switch"><input type="checkbox" id="inhibit"><span></span></label>
+    </div>
+    <div id="inhibitBox">
+      <div class="row">
+        <label for="inhibitPct">出现概率</label>
+        <div class="num" data-for="inhibitPct"><button type="button" data-step="-5">−</button><input id="inhibitPct" type="number" inputmode="numeric" step="1" min="5" max="80"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
+      </div>
+      <p class="hint">出现 <span class="swatch"></span> <b>红底黑箭头</b> 时，要往箭头的<b>反方向</b>跑：左上↔右下、右上↔左下、左↔右。练的是"刹住本能反应"。</p>
+    </div>
+    <div class="row">
+      <label for="fake">假动作</label>
+      <label class="switch"><input type="checkbox" id="fake"><span></span></label>
+    </div>
+    <div id="fakeBox">
+      <div class="row">
+        <label for="fakePct">出现概率</label>
+        <div class="num" data-for="fakePct"><button type="button" data-step="-5">−</button><input id="fakePct" type="number" inputmode="numeric" step="1" min="5" max="80"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
+      </div>
+      <div class="row">
+        <label for="fakeDur">假动作停留</label>
+        <div class="num" data-for="fakeDur"><button type="button" data-step="-0.05">−</button><input id="fakeDur" type="number" inputmode="decimal" step="0.05" min="0.1" max="1"><button type="button" data-step="0.05">+</button><span class="unit">秒</span></div>
+      </div>
+      <p class="hint">先闪一个斜向箭头，停留这么久后突然换成另一个斜向方向（以后者为准）。只在左上/右上/左下/右下之间发生，左右是接杀步伐，不做假动作。</p>
+    </div>
+  </section>
+
+  <section class="card">
     <h2>训练时长</h2>
     <div class="seg" id="limitSeg">
       <button data-limit="none">不限</button>
@@ -245,6 +278,9 @@
   };
   const ZONE_COLOR = { front: '#22d3ee', mid: '#facc15', back: '#f472b6' };
   const MIRROR = { UL: 'UR', UR: 'UL', L: 'R', R: 'L', DL: 'DR', DR: 'DL' };
+  const OPP = { UL: 'DR', DR: 'UL', UR: 'DL', DL: 'UR', L: 'R', R: 'L' }; // 反向指令：箭头指向的对角
+  const DIAG = ['UL', 'UR', 'DL', 'DR'];                                   // 假动作只在斜向之间发生
+  const INHIBIT_BG = '#ef4444';
 
   // ---------- 设置 ----------
   const DEFAULTS = {
@@ -252,6 +288,7 @@
     dirs: ['UL', 'UR', 'L', 'R', 'DL', 'DR'], allowRepeat: true,
     limit: 'none', count: 30, duration: 60, countdown: 3,
     beep: true, voice: false, vibrate: true, mirror: false,
+    inhibit: false, inhibitPct: 25, fake: false, fakePct: 30, fakeDur: 0.3,
   };
   const PRESETS = {
     easy: { mode: 'fixed', fixed: 3 },
@@ -268,8 +305,8 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
 
   const $ = id => document.getElementById(id);
-  const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown'];
-  const BOOL_FIELDS = ['allowRepeat', 'beep', 'voice', 'vibrate', 'mirror'];
+  const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown', 'inhibitPct', 'fakePct', 'fakeDur'];
+  const BOOL_FIELDS = ['allowRepeat', 'beep', 'voice', 'vibrate', 'mirror', 'inhibit', 'fake'];
 
   function render() {
     document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
@@ -278,6 +315,8 @@
     document.querySelectorAll('#limitSeg button').forEach(b => b.classList.toggle('on', b.dataset.limit === S.limit));
     $('countRow').classList.toggle('hidden', S.limit !== 'count');
     $('timeRow').classList.toggle('hidden', S.limit !== 'time');
+    $('inhibitBox').classList.toggle('hidden', !S.inhibit);
+    $('fakeBox').classList.toggle('hidden', !S.fake);
     NUM_FIELDS.forEach(k => { if (document.activeElement !== $(k)) $(k).value = S[k]; });
     BOOL_FIELDS.forEach(k => { $(k).checked = !!S[k]; });
     document.querySelectorAll('.dir').forEach(b => b.classList.toggle('on', S.dirs.includes(b.dataset.dir)));
@@ -289,7 +328,7 @@
     const min = parseFloat(el.min), max = parseFloat(el.max);
     if (!isFinite(v)) v = DEFAULTS[k];
     v = Math.min(max, Math.max(min, v));
-    return Math.round(v * 10) / 10;
+    return Math.round(v * 100) / 100;
   }
 
   function validate() {
@@ -382,7 +421,7 @@
     const sw = 0.11 * f, hw = 0.3 * f, hb = 0.06; // 箭杆半宽、箭头半宽、箭头根部位置
     return [ [-0.5, -sw], [hb, -sw], [hb, -hw], [0.5, 0], [hb, hw], [hb, sw], [-0.5, sw] ];
   }
-  function drawArrow(dirKey) {
+  function drawArrow(dirKey, inhibit) {
     const w = window.innerWidth, h = window.innerHeight;
     const svg = $('arrowSvg');
     svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
@@ -406,7 +445,8 @@
     const pts = rot.map(([x, y]) => `${(w / 2 + x * k).toFixed(1)},${(h / 2 + y * k).toFixed(1)}`).join(' ');
     const poly = $('arrowPoly');
     poly.setAttribute('points', pts);
-    poly.setAttribute('fill', ZONE_COLOR[d.zone]);
+    poly.setAttribute('fill', inhibit ? '#000' : ZONE_COLOR[d.zone]);
+    $('train').style.background = inhibit ? INHIBIT_BG : '#000';
     $('arrowG').style.transformOrigin = `${w / 2}px ${h / 2}px`;
   }
 
@@ -415,8 +455,11 @@
     active: false, paused: false, phase: 'idle', // idle | countdown | run | done
     timer: null, nextAt: 0, curInterval: 0, remaining: 0,
     current: null, last: null, n: 0, startedAt: 0, pausedTotal: 0, pauseStart: 0,
-    tally: {}, cd: 0,
+    tally: {}, cd: 0, pending: null, shown: null, nInhibit: 0, nFake: 0,
   };
+  const rand = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+  const chance = pct => rand() * 100 < pct;
+  const pickFrom = arr => arr[Math.floor(rand() * arr.length)];
 
   function nextInterval() {
     if (S.mode === 'fixed') return S.fixed * 1000;
@@ -426,9 +469,15 @@
   function pickDir() {
     let pool = S.dirs;
     if (!S.allowRepeat && pool.length > 1 && T.last) pool = pool.filter(d => d !== T.last);
-    // crypto 随机，避免 Math.random 偶发的"手感规律"
-    const r = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
-    return pool[Math.floor(r * pool.length)];
+    return pickFrom(pool); // crypto 随机，避免 Math.random 偶发的"手感规律"
+  }
+  // 统一的定时器：记住"下一步要做什么"，暂停/继续时能原样接上（包括假动作切换的那一下）
+  function later(fn, ms) {
+    clearTimeout(T.timer);
+    T.pending = fn;
+    T.curInterval = ms;
+    T.nextAt = performance.now() + ms;
+    T.timer = setTimeout(() => { T.pending = null; fn(); }, ms);
   }
   function elapsed() {
     const pausedNow = T.paused ? performance.now() - T.pauseStart : 0;
@@ -451,8 +500,10 @@
   // 在训练界面内直接重开一组（不动 history，避免 popstate 竞态）
   function reset() {
     clearTimeout(T.timer);
-    Object.assign(T, { active: true, paused: false, current: null, last: null, n: 0, tally: {}, pausedTotal: 0 });
+    Object.assign(T, { active: true, paused: false, current: null, last: null, n: 0, tally: {}, pausedTotal: 0,
+      pending: null, shown: null, nInhibit: 0, nFake: 0 });
     $('arrowPoly').setAttribute('points', '');
+    $('train').style.background = '#000';
     ['pauseOverlay', 'doneOverlay'].forEach(id => $(id).classList.add('hidden'));
     countdown();
   }
@@ -486,29 +537,49 @@
     if (S.limit === 'time' && elapsed() >= S.duration * 1000) return finish();
 
     T.last = T.current;
-    T.current = pickDir();
+    T.current = pickDir();                 // 真正要去的方向
     T.n++;
     T.tally[T.current] = (T.tally[T.current] || 0) + 1;
-    showDir();
 
-    T.curInterval = nextInterval();
-    // 按时间训练时，最后一次不超过总时长
-    if (S.limit === 'time') T.curInterval = Math.min(T.curInterval, Math.max(0, S.duration * 1000 - elapsed()));
-    T.nextAt = performance.now() + T.curInterval;
-    clearTimeout(T.timer);
-    T.timer = setTimeout(step, T.curInterval);
+    const inhibit = S.inhibit && chance(S.inhibitPct);
+    const shownKey = inhibit ? OPP[T.current] : T.current; // 反向时箭头指向对角
+    if (inhibit) T.nInhibit++;
+
+    // 假动作：真实箭头是斜向时才可能出现，先闪另一个斜向
+    let fakeKey = null;
+    if (S.fake && DIAG.includes(shownKey) && chance(S.fakePct)) {
+      let pool = DIAG.filter(k => k !== shownKey && S.dirs.includes(k));
+      if (!pool.length) pool = DIAG.filter(k => k !== shownKey);
+      fakeKey = pickFrom(pool);
+    }
+
+    const showReal = () => {
+      showArrow(shownKey, inhibit, true);
+      let iv = nextInterval();
+      // 按时间训练时，最后一次不超过总时长
+      if (S.limit === 'time') iv = Math.min(iv, Math.max(0, S.duration * 1000 - elapsed()));
+      later(step, iv);
+    };
+    if (fakeKey) {
+      T.nFake++;
+      showArrow(fakeKey, false, false);
+      later(showReal, S.fakeDur * 1000);
+    } else showReal();
   }
 
   function screenDir(key) { return S.mirror ? MIRROR[key] : key; }
 
-  function showDir() {
-    const key = screenDir(T.current);
-    drawArrow(key);
+  // key = 箭头指向（玩家视角），inhibit = 红底反向，real = 是否最终方向（假动作为 false）
+  function showArrow(key, inhibit, real) {
+    T.shown = { key, inhibit };
+    drawArrow(screenDir(key), inhibit);
     // 方向允许重复，所以每次都闪一下 + 弹一下，确保同方向连续出现时也能察觉到"换了"
     const g = $('arrowG'); g.classList.remove('pop'); void g.getBBox(); g.classList.add('pop');
     const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
-    if (S.beep) beep(DIRS[T.current].zone === 'front' ? 1046 : DIRS[T.current].zone === 'mid' ? 880 : 698, 0.12, 0.5);
-    if (S.voice) speak(DIRS[T.current].name);
+    // 音高跟随屏幕上箭头的区域，不泄露反向后的真实方向；假动作也照常响，才够"真"
+    const zone = DIRS[key].zone;
+    if (S.beep) beep(zone === 'front' ? 1046 : zone === 'mid' ? 880 : 698, 0.12, 0.5);
+    if (S.voice && real) speak(inhibit ? '反' : DIRS[key].name);
     buzz(60);
   }
 
@@ -518,6 +589,7 @@
     T.pauseStart = performance.now();
     clearTimeout(T.timer);
     T.remaining = Math.max(0, T.nextAt - performance.now());
+    T.resumeFn = T.pending;
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     $('pauseOverlay').classList.remove('hidden');
   }
@@ -528,8 +600,7 @@
     $('pauseOverlay').classList.add('hidden');
     keepAwake();
     if (T.phase === 'countdown') return countdown();
-    T.nextAt = performance.now() + T.remaining;
-    T.timer = setTimeout(step, T.remaining);
+    later(T.resumeFn || step, T.remaining);
   }
 
   function finish() {
@@ -538,7 +609,8 @@
     if (S.beep) { beep(784, 0.15); setTimeout(() => beep(1046, 0.3), 180); }
     if (S.voice) speak('训练完成');
     buzz([100, 80, 200]);
-    $('doneSummary').textContent = `共 ${T.n} 次 · 用时 ${fmtTime(elapsed() / 1000)}`;
+    const extra = [S.inhibit ? `反向 ${T.nInhibit} 次` : '', S.fake ? `假动作 ${T.nFake} 次` : ''].filter(Boolean);
+    $('doneSummary').textContent = [`共 ${T.n} 次`, `用时 ${fmtTime(elapsed() / 1000)}`, ...extra].join(' · ');
     $('doneStats').innerHTML = Object.keys(DIRS).filter(k => S.dirs.includes(k))
       .map(k => `<div style="color:${ZONE_COLOR[DIRS[k].zone]}">${DIRS[k].name}<b>${T.tally[k] || 0}</b></div>`).join('');
     $('doneOverlay').classList.remove('hidden');
@@ -575,7 +647,7 @@
   $('doneAgain').onclick = e => { e.stopPropagation(); initAudio(); keepAwake(); reset(); };
 
   window.addEventListener('popstate', () => { if (T.active) stop(true); });
-  window.addEventListener('resize', () => { if (T.current && T.phase === 'run') drawArrow(screenDir(T.current)); });
+  window.addEventListener('resize', () => { if (T.shown && T.phase === 'run') drawArrow(screenDir(T.shown.key), T.shown.inhibit); });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) pause();
     else if (T.active) keepAwake();
