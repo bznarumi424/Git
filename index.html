@@ -92,15 +92,14 @@
   @keyframes pop { 0% { transform: scale(.82); opacity: .3; } 100% { transform: scale(1); opacity: 1; } }
   #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
   /* 防守练习：起球后顶部的小倒计时圆环（对手准备进攻的那一下）*/
-  #ring { position: absolute; top: calc(14px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
-    width: min(22vmin, 110px); height: min(22vmin, 110px); pointer-events: none; }
-  #ring circle { fill: none; stroke-width: 9; }
-  #ringTrack { stroke: rgba(255,255,255,.18); }
+  /* 防守练习：全屏倒计时圆环（对手准备进攻），中间是一位小数的倒计时 */
+  #ringBox { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  #ring { width: 92vmin; height: 92vmin; }
+  #ring circle { fill: none; stroke-width: 7; }
+  #ringTrack { stroke: rgba(255,255,255,.15); }
   #ringArc { stroke: #fff; stroke-linecap: round; stroke-dasharray: 264; stroke-dashoffset: 0;
     transform: rotate(-90deg); transform-origin: 50px 50px; }
-  #ringArc.run { animation: ringDrain var(--ring-dur, 1s) linear forwards; }
-  @keyframes ringDrain { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 264; } }
-  #train.paused #ringArc { animation-play-state: paused; }
+  #ringNum { position: absolute; font-size: 30vmin; font-weight: 900; color: #fff; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
   #flash.go { animation: flash .22s ease-out; }
   @keyframes flash { 0% { opacity: .55; } 100% { opacity: 0; } }
 
@@ -145,20 +144,38 @@
       <div class="num" data-for="defMove"><button type="button" data-step="-0.1">−</button><input id="defMove" type="number" inputmode="decimal" step="0.1" min="0.5" max="5"><button type="button" data-step="0.1">+</button><span class="unit">秒</span></div>
     </div>
     <div class="row">
-      <label for="defRing">圆环倒计时</label>
-      <div class="num" data-for="defRing"><button type="button" data-step="-0.1">−</button><input id="defRing" type="number" inputmode="decimal" step="0.1" min="0.3" max="3"><button type="button" data-step="0.1">+</button><span class="unit">秒</span></div>
+      <label for="ringMin">圆环最短</label>
+      <div class="num" data-for="ringMin"><button type="button" data-step="-0.1">−</button><input id="ringMin" type="number" inputmode="decimal" step="0.1" min="0.3" max="5"><button type="button" data-step="0.1">+</button><span class="unit">秒</span></div>
     </div>
     <div class="row">
-      <label for="smashPct">起球后：接杀概率</label>
+      <label for="ringMax">圆环最长</label>
+      <div class="num" data-for="ringMax"><button type="button" data-step="-0.1">−</button><input id="ringMax" type="number" inputmode="decimal" step="0.1" min="0.3" max="5"><button type="button" data-step="0.1">+</button><span class="unit">秒</span></div>
+    </div>
+    <div class="row">
+      <label for="ringCut">平高后圆环缩短</label>
+      <div class="num" data-for="ringCut"><button type="button" data-step="-0.1">−</button><input id="ringCut" type="number" inputmode="decimal" step="0.1" min="0" max="2"><button type="button" data-step="0.1">+</button><span class="unit">秒</span></div>
+    </div>
+    <p class="hint">每次圆环时长在「最短～最长」之间随机。抽完后场、等对方杀球的那个圆环再减去这个时间（最短 0.2 秒），节奏更紧。</p>
+    <div class="row">
+      <label for="smashPct">挑球后：对方杀</label>
       <div class="num" data-for="smashPct"><button type="button" data-step="-5">−</button><input id="smashPct" type="number" inputmode="numeric" step="1" min="0" max="100"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
     </div>
-    <p class="hint" id="dropHint"></p>
     <div class="row">
-      <label for="clearPct">接杀后：后场平高概率</label>
-      <div class="num" data-for="clearPct"><button type="button" data-step="-5">−</button><input id="clearPct" type="number" inputmode="numeric" step="1" min="0" max="100"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
+      <label for="dropPct">挑球后：对方吊</label>
+      <div class="num" data-for="dropPct"><button type="button" data-step="-5">−</button><input id="dropPct" type="number" inputmode="numeric" step="1" min="0" max="100"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
     </div>
     <p class="hint" id="clearHint"></p>
-    <p class="hint">流程：<b style="color:var(--front)">网前起球</b> → 顶部 ⏱ 圆环 → <b style="color:var(--mid)">接杀（左/右）</b> 或 <b style="color:var(--front)">吊球</b>（=再次网前起球）。接杀后 → 网前起球，或 <b style="color:var(--back)">后场平高</b> → 直接接杀。反向和假动作在下方「神经抑制 & 假动作」里开关。</p>
+    <div class="row">
+      <label for="sameSidePct">接杀后放网：同侧</label>
+      <div class="num" data-for="sameSidePct"><button type="button" data-step="-5">−</button><input id="sameSidePct" type="number" inputmode="numeric" step="1" min="0" max="100"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
+    </div>
+    <p class="hint" id="sideHint"></p>
+    <div class="error hidden" id="defErr"></div>
+    <p class="hint">流程：<b style="color:var(--front)">挑球</b> → ⏱ → 对方出球：<br>
+      ① 杀 → <b style="color:var(--mid)">接杀</b> → 对方放网 → <b style="color:var(--front)">挑球</b> → ⏱<br>
+      ② 吊 → <b style="color:var(--front)">接吊直接挑球</b> → ⏱<br>
+      ③ 平高 → <b style="color:var(--back)">接平高抽后场</b> → ⏱（缩短）→ <b style="color:var(--mid)">接杀</b> → 对方放网 → <b style="color:var(--front)">挑球</b> → ⏱<br>
+      反向和假动作在下方「神经抑制 & 假动作」里开关。</p>
   </section>
 
   <section class="card" id="startCard">
@@ -306,7 +323,10 @@
     <g id="arrowG"><polygon id="arrowPoly" points=""/></g>
   </svg>
   <div id="flash"></div>
-  <svg id="ring" class="hidden" viewBox="0 0 100 100"><circle id="ringTrack" cx="50" cy="50" r="42"/><circle id="ringArc" cx="50" cy="50" r="42"/></svg>
+  <div id="ringBox" class="hidden">
+    <svg id="ring" viewBox="0 0 100 100"><circle id="ringTrack" cx="50" cy="50" r="42"/><circle id="ringArc" cx="50" cy="50" r="42"/></svg>
+    <div id="ringNum"></div>
+  </div>
   <button id="exitBtn" aria-label="结束训练">✕</button>
 
   <div class="overlay hidden" id="countOverlay"><div id="countNum">3</div><div class="small">站到中心，准备启动</div></div>
@@ -358,7 +378,7 @@
     beep: true, voice: false, vibrate: true, mirror: false,
     inhibit: false, inhibitPct: 25, fake: false, fakePct: 30, fakeDur: 0.3,
     trainMode: 'standard', startI: 1, startInhibitPct: 30,
-    defMove: 1.5, defRing: 1, smashPct: 75, clearPct: 20,
+    defMove: 1.5, ringMin: 0.8, ringMax: 1.5, ringCut: 0.4, smashPct: 60, dropPct: 25, sameSidePct: 75,
   };
   const PRESETS = {
     easy: { trainMode: 'standard', mode: 'fixed', fixed: 3 },
@@ -375,7 +395,7 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
 
   const $ = id => document.getElementById(id);
-  const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown', 'inhibitPct', 'fakePct', 'fakeDur', 'startI', 'startInhibitPct', 'defMove', 'defRing', 'smashPct', 'clearPct'];
+  const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown', 'inhibitPct', 'fakePct', 'fakeDur', 'startI', 'startInhibitPct', 'defMove', 'ringMin', 'ringMax', 'ringCut', 'smashPct', 'dropPct', 'sameSidePct'];
   const BOOL_FIELDS = ['allowRepeat', 'realProb', 'beep', 'voice', 'vibrate', 'mirror', 'inhibit', 'fake'];
 
   function render() {
@@ -390,8 +410,8 @@
     $('inhibitCard').classList.toggle('hidden', startMode);
     $('dirCard').classList.toggle('hidden', defMode);
     $('zoneHint').classList.toggle('hidden', startMode);
-    $('dropHint').textContent = `其余 ${Math.max(0, 100 - S.smashPct)}% 为吊球 → 回到网前起球`;
-    $('clearHint').textContent = `其余 ${Math.max(0, 100 - S.clearPct)}% 回到网前起球；平高之后直接接杀`;
+    $('clearHint').textContent = `对方平高 = 剩余 ${Math.max(0, 100 - S.smashPct - S.dropPct)}%`;
+    $('sideHint').textContent = `对角 = 剩余 ${Math.max(0, 100 - S.sameSidePct)}%（接左边的杀 → 放右网前）`;
     document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
     $('fixedBox').classList.toggle('hidden', S.mode !== 'fixed');
     $('randomBox').classList.toggle('hidden', S.mode !== 'random');
@@ -417,8 +437,12 @@
   function validate() {
     let ok = true;
     const ie = $('intervalErr'), de = $('dirErr');
-    if (S.trainMode !== 'start' && S.mode === 'random' && S.minI > S.maxI) { ie.textContent = '最短间隔不能大于最长间隔'; ie.classList.remove('hidden'); ok = false; }
+    if (S.trainMode === 'standard' && S.mode === 'random' && S.minI > S.maxI) { ie.textContent = '最短间隔不能大于最长间隔'; ie.classList.remove('hidden'); ok = false; }
     else ie.classList.add('hidden');
+    const fe = $('defErr');
+    if (S.trainMode === 'defense' && S.smashPct + S.dropPct > 100) { fe.textContent = '杀 + 吊 不能超过 100%'; fe.classList.remove('hidden'); ok = false; }
+    else if (S.trainMode === 'defense' && S.ringMin > S.ringMax) { fe.textContent = '圆环最短不能大于最长'; fe.classList.remove('hidden'); ok = false; }
+    else fe.classList.add('hidden');
     if (S.trainMode === 'defense') de.classList.add('hidden'); // 防守练习方向由流程决定
     else if (S.dirs.length === 0) { de.textContent = '至少启用一个方向'; de.classList.remove('hidden'); ok = false; }
     else if (!S.dirs.some(d => DIAG.includes(d))) { de.textContent = '左右不能连续出现，请至少再启用一个斜向方向'; de.classList.remove('hidden'); ok = false; }
@@ -596,7 +620,7 @@
     clearTimeout(T.timer);
     Object.assign(T, { active: true, paused: false, current: null, last: null, n: 0, tally: {}, pausedTotal: 0,
       pending: null, shown: null, nInhibit: 0, nFake: 0,
-      def: { next: 'lift', ringNext: false, counts: { lift: 0, drop: 0, smash: 0, clear: 0 } } });
+      def: { next: 'lift', ring: null, counts: { lift: 0, drop: 0, smash: 0, clear: 0 } } });
     $('arrowPoly').setAttribute('points', '');
     hideRing();
     ['pauseOverlay', 'doneOverlay'].forEach(id => $(id).classList.add('hidden'));
@@ -633,10 +657,11 @@
 
     const defMode = S.trainMode === 'defense';
     // 防守练习：起球/吊球之后先走一个圆环倒计时（对手准备进攻），不计次数
-    if (defMode && T.def.ringNext) {
-      T.def.ringNext = false;
-      showRing();
-      return later(step, S.defRing * 1000);
+    if (defMode && T.def.ring) {
+      const ms = ringDuration(T.def.ring === 'short');
+      T.def.ring = null;
+      later(step, ms);   // 先启动定时器，圆环读的是它的剩余时间
+      return showRing(ms);
     }
     hideRing();
 
@@ -672,31 +697,54 @@
     } else showReal();
   }
 
-  // 防守流程状态机：
-  //   lift(网前起球,前场) → ⏱ → attack：smashPct% 接杀(左/右)，其余 吊球(前场，=再次起球，再 ⏱)
-  //   接杀之后：clearPct% 后场平高(后场)，其余 网前起球
-  //   平高之后：直接接杀
+  // 防守流程状态机（每个箭头 = 我方要去的位置）：
+  //   lift 挑球(前场) → ⏱ → attack：
+  //     smash 杀  → 接杀(左/右) → 对方放网 → lift 挑球（smash 同侧 sameSidePct%，否则对角）→ ⏱
+  //     drop  吊  → 接吊直接挑球(前场) → ⏱
+  //     clear 平高 → 接平高抽后场(后场) → ⏱(缩短 ringCut) → smash 接杀 → 放网 → lift → ⏱
   function pickDefense() {
     const D = T.def; let kind;
-    if (D.next === 'attack') kind = chance(S.smashPct) ? 'smash' : 'drop';
-    else if (D.next === 'afterSmash') kind = chance(S.clearPct) ? 'clear' : 'lift';
-    else if (D.next === 'afterClear') kind = 'smash';
-    else kind = 'lift';
+    if (D.next === 'attack') {
+      const r = rand() * 100;
+      kind = r < S.smashPct ? 'smash' : r < S.smashPct + S.dropPct ? 'drop' : 'clear';
+    } else kind = D.next; // 'lift' / 'smash'（平高之后）
     D.counts[kind]++;
-    D.next = kind === 'smash' ? 'afterSmash' : kind === 'clear' ? 'afterClear' : 'attack';
-    D.ringNext = kind === 'lift' || kind === 'drop';
-    return pickFrom(kind === 'smash' ? SIDE : kind === 'clear' ? ['DL', 'DR'] : ['UL', 'UR']);
+    D.next = kind === 'smash' ? 'lift' : kind === 'clear' ? 'smash' : 'attack';
+    D.ring = kind === 'clear' ? 'short' : (kind === 'lift' || kind === 'drop') ? 'normal' : null;
+    if (kind === 'smash') return pickFrom(SIDE);
+    if (kind === 'clear') return pickFrom(['DL', 'DR']);
+    if (kind === 'lift' && SIDE.includes(T.last)) {
+      // 接杀后对方放网：大概率放同侧，小概率放对角
+      const same = T.last === 'L' ? 'UL' : 'UR', cross = T.last === 'L' ? 'UR' : 'UL';
+      return chance(S.sameSidePct) ? same : cross;
+    }
+    return pickFrom(['UL', 'UR']);
   }
 
-  function showRing() {
+  function ringDuration(short) {
+    const lo = Math.min(S.ringMin, S.ringMax), hi = Math.max(S.ringMin, S.ringMax);
+    let sec = lo + rand() * (hi - lo);
+    if (short) sec = Math.max(0.2, sec - S.ringCut);
+    return sec * 1000;
+  }
+
+  // 圆环和数字由 rAF 驱动，直接读定时器剩余时间 → 暂停时自然冻住
+  function showRing(ms) {
     $('arrowPoly').setAttribute('points', '');
     T.shown = null;
-    const arc = $('ringArc');
-    arc.style.setProperty('--ring-dur', S.defRing + 's');
-    arc.classList.remove('run'); void arc.getBBox(); arc.classList.add('run');
-    $('ring').classList.remove('hidden');
+    T.ringTotal = ms;
+    $('ringBox').classList.remove('hidden');
+    cancelAnimationFrame(T.ringRaf);
+    const frame = () => {
+      if ($('ringBox').classList.contains('hidden')) return;
+      const left = T.paused ? T.remaining : Math.max(0, T.nextAt - performance.now());
+      $('ringArc').style.strokeDashoffset = (264 * (1 - left / T.ringTotal)).toFixed(1);
+      $('ringNum').textContent = (Math.ceil(left / 100) / 10).toFixed(1);
+      T.ringRaf = requestAnimationFrame(frame);
+    };
+    frame();
   }
-  function hideRing() { $('ring').classList.add('hidden'); $('ringArc').classList.remove('run'); }
+  function hideRing() { $('ringBox').classList.add('hidden'); cancelAnimationFrame(T.ringRaf); }
 
   function screenDir(key) { return S.mirror ? MIRROR[key] : key; }
 
@@ -749,7 +797,7 @@
     $('doneSummary').textContent = [`共 ${T.n} 次`, `用时 ${fmtTime(elapsed() / 1000)}`, ...extra].join(' · ');
     const cell = (color, name, v) => `<div style="color:${color}">${name}<b>${v}</b></div>`;
     $('doneStats').innerHTML = defMode
-      ? [['front', '网前起球', 'lift'], ['front', '吊球', 'drop'], ['mid', '接杀', 'smash'], ['back', '后场平高', 'clear']]
+      ? [['front', '挑球', 'lift'], ['front', '接吊', 'drop'], ['mid', '接杀', 'smash'], ['back', '接平高', 'clear']]
           .map(([z, n, k]) => cell(ZONE_COLOR[z], n, T.def.counts[k])).join('')
       : Object.keys(DIRS).filter(k => S.dirs.includes(k)).map(k => cell(ZONE_COLOR[DIRS[k].zone], DIRS[k].name, T.tally[k] || 0)).join('');
     $('doneOverlay').classList.remove('hidden');
