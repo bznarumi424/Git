@@ -188,9 +188,15 @@
       <button class="dir" data-dir="DR" data-zone="back">右下 ↘</button>
     </div>
     <div class="row" style="margin-top:8px">
+      <label for="realProb">按实战概率出现</label>
+      <label class="switch"><input type="checkbox" id="realProb"><span></span></label>
+    </div>
+    <p class="hint" id="realHint">开：后场约 42%（左下/右下各 21%）、前场约 38%（左上/右上各 19%）、两侧约 20%（左/右各 10%）。关：启用的方向等概率。</p>
+    <div class="row">
       <label for="allowRepeat">允许连续出现相同方向</label>
       <label class="switch"><input type="checkbox" id="allowRepeat"><span></span></label>
     </div>
+    <p class="hint">左、右是接杀步伐，<b>永远不会连续出现</b>（接完杀后下一拍一定是斜向）。</p>
     <p class="hint" id="zoneHint">颜色区分前/中/后场：青色=前场，黄色=两侧，紫色=后场，余光也能秒认。</p>
     <div class="error hidden" id="dirErr"></div>
   </section>
@@ -302,12 +308,17 @@
   const MIRROR = { UL: 'UR', UR: 'UL', L: 'R', R: 'L', DL: 'DR', DR: 'DL' };
   const OPP = { UL: 'DR', DR: 'UL', UR: 'DL', DL: 'UR', L: 'R', R: 'L' }; // 反向指令：箭头指向的对角
   const DIAG = ['UL', 'UR', 'DL', 'DR'];                                   // 假动作只在斜向之间发生
+  const SIDE = ['L', 'R'];                                                 // 接杀步伐，不能连续
+  // 实战概率（单打，估算）：目标长期占比 后场 42% / 前场 38% / 两侧 20%。
+  // 因为"左右不连续"会压低两侧的实际出现率，这里的抽样权重已反推校准：
+  // 两侧占比 π = m(1-π) → 想要 π=0.20，正常状态下两侧总权重 m=0.25；其余 0.75 按 38:42 分给前/后场。
+  const REAL_W = { UL: 0.178125, UR: 0.178125, L: 0.125, R: 0.125, DL: 0.196875, DR: 0.196875 };
   const INHIBIT_COLOR = '#ef4444'; // 反向指令：箭头变红，背景不变
 
   // ---------- 设置 ----------
   const DEFAULTS = {
     mode: 'fixed', fixed: 2, minI: 1.5, maxI: 3,
-    dirs: ['UL', 'UR', 'L', 'R', 'DL', 'DR'], allowRepeat: true,
+    dirs: ['UL', 'UR', 'L', 'R', 'DL', 'DR'], allowRepeat: true, realProb: true,
     limit: 'none', count: 30, duration: 60, countdown: 3,
     beep: true, voice: false, vibrate: true, mirror: false,
     inhibit: false, inhibitPct: 25, fake: false, fakePct: 30, fakeDur: 0.3,
@@ -329,7 +340,7 @@
 
   const $ = id => document.getElementById(id);
   const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown', 'inhibitPct', 'fakePct', 'fakeDur', 'startI', 'startInhibitPct'];
-  const BOOL_FIELDS = ['allowRepeat', 'beep', 'voice', 'vibrate', 'mirror', 'inhibit', 'fake'];
+  const BOOL_FIELDS = ['allowRepeat', 'realProb', 'beep', 'voice', 'vibrate', 'mirror', 'inhibit', 'fake'];
 
   function render() {
     const startMode = S.trainMode === 'start';
@@ -367,6 +378,7 @@
     if (S.trainMode !== 'start' && S.mode === 'random' && S.minI > S.maxI) { ie.textContent = '最短间隔不能大于最长间隔'; ie.classList.remove('hidden'); ok = false; }
     else ie.classList.add('hidden');
     if (S.dirs.length === 0) { de.textContent = '至少启用一个方向'; de.classList.remove('hidden'); ok = false; }
+    else if (!S.dirs.some(d => DIAG.includes(d))) { de.textContent = '左右不能连续出现，请至少再启用一个斜向方向'; de.classList.remove('hidden'); ok = false; }
     else if (S.dirs.length === 1 && !S.allowRepeat) { de.textContent = '只启用一个方向时，需要允许重复'; de.classList.remove('hidden'); ok = false; }
     else de.classList.add('hidden');
     $('startBtn').disabled = !ok;
@@ -500,8 +512,14 @@
   }
   function pickDir() {
     let pool = S.dirs;
+    // 左右=接杀：上一拍是左/右，这一拍只能是斜向
+    if (SIDE.includes(T.last)) pool = pool.filter(d => !SIDE.includes(d));
     if (!S.allowRepeat && pool.length > 1 && T.last) pool = pool.filter(d => d !== T.last);
-    return pickFrom(pool); // crypto 随机，避免 Math.random 偶发的"手感规律"
+    if (!S.realProb) return pickFrom(pool); // crypto 随机，避免 Math.random 偶发的"手感规律"
+    const total = pool.reduce((a, d) => a + REAL_W[d], 0);
+    let r = rand() * total;
+    for (const d of pool) { r -= REAL_W[d]; if (r < 0) return d; }
+    return pool[pool.length - 1];
   }
   // 统一的定时器：记住"下一步要做什么"，暂停/继续时能原样接上（包括假动作切换的那一下）
   function later(fn, ms) {
