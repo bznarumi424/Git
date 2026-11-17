@@ -91,6 +91,16 @@
   #arrowG.pop { animation: pop .28s ease-out; }
   @keyframes pop { 0% { transform: scale(.82); opacity: .3; } 100% { transform: scale(1); opacity: 1; } }
   #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  /* 防守练习：起球后顶部的小倒计时圆环（对手准备进攻的那一下）*/
+  #ring { position: absolute; top: calc(14px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    width: min(22vmin, 110px); height: min(22vmin, 110px); pointer-events: none; }
+  #ring circle { fill: none; stroke-width: 9; }
+  #ringTrack { stroke: rgba(255,255,255,.18); }
+  #ringArc { stroke: #fff; stroke-linecap: round; stroke-dasharray: 264; stroke-dashoffset: 0;
+    transform: rotate(-90deg); transform-origin: 50px 50px; }
+  #ringArc.run { animation: ringDrain var(--ring-dur, 1s) linear forwards; }
+  @keyframes ringDrain { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 264; } }
+  #train.paused #ringArc { animation-play-state: paused; }
   #flash.go { animation: flash .22s ease-out; }
   @keyframes flash { 0% { opacity: .55; } 100% { opacity: 0; } }
 
@@ -123,8 +133,32 @@
     <div class="seg" id="trainSeg">
       <button data-train="standard">六点步伐</button>
       <button data-train="start">启动练习</button>
+      <button data-train="defense">防守练习</button>
     </div>
     <p class="hint" id="trainHint"></p>
+  </section>
+
+  <section class="card" id="defCard">
+    <h2>防守练习</h2>
+    <div class="row">
+      <label for="defMove">每个动作时间</label>
+      <div class="num" data-for="defMove"><button type="button" data-step="-0.1">−</button><input id="defMove" type="number" inputmode="decimal" step="0.1" min="0.5" max="5"><button type="button" data-step="0.1">+</button><span class="unit">秒</span></div>
+    </div>
+    <div class="row">
+      <label for="defRing">圆环倒计时</label>
+      <div class="num" data-for="defRing"><button type="button" data-step="-0.1">−</button><input id="defRing" type="number" inputmode="decimal" step="0.1" min="0.3" max="3"><button type="button" data-step="0.1">+</button><span class="unit">秒</span></div>
+    </div>
+    <div class="row">
+      <label for="smashPct">起球后：接杀概率</label>
+      <div class="num" data-for="smashPct"><button type="button" data-step="-5">−</button><input id="smashPct" type="number" inputmode="numeric" step="1" min="0" max="100"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
+    </div>
+    <p class="hint" id="dropHint"></p>
+    <div class="row">
+      <label for="clearPct">接杀后：后场平高概率</label>
+      <div class="num" data-for="clearPct"><button type="button" data-step="-5">−</button><input id="clearPct" type="number" inputmode="numeric" step="1" min="0" max="100"><button type="button" data-step="5">+</button><span class="unit">%</span></div>
+    </div>
+    <p class="hint" id="clearHint"></p>
+    <p class="hint">流程：<b style="color:var(--front)">网前起球</b> → 顶部 ⏱ 圆环 → <b style="color:var(--mid)">接杀（左/右）</b> 或 <b style="color:var(--front)">吊球</b>（=再次网前起球）。接杀后 → 网前起球，或 <b style="color:var(--back)">后场平高</b> → 直接接杀。反向和假动作在下方「神经抑制 & 假动作」里开关。</p>
   </section>
 
   <section class="card" id="startCard">
@@ -177,7 +211,7 @@
     <div class="error hidden" id="intervalErr"></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="dirCard">
     <h2>启用的方向（点击开关）</h2>
     <div class="court" id="court">
       <button class="dir" data-dir="UL" data-zone="front">↖ 左上</button>
@@ -272,6 +306,7 @@
     <g id="arrowG"><polygon id="arrowPoly" points=""/></g>
   </svg>
   <div id="flash"></div>
+  <svg id="ring" class="hidden" viewBox="0 0 100 100"><circle id="ringTrack" cx="50" cy="50" r="42"/><circle id="ringArc" cx="50" cy="50" r="42"/></svg>
   <button id="exitBtn" aria-label="结束训练">✕</button>
 
   <div class="overlay hidden" id="countOverlay"><div id="countNum">3</div><div class="small">站到中心，准备启动</div></div>
@@ -323,6 +358,7 @@
     beep: true, voice: false, vibrate: true, mirror: false,
     inhibit: false, inhibitPct: 25, fake: false, fakePct: 30, fakeDur: 0.3,
     trainMode: 'standard', startI: 1, startInhibitPct: 30,
+    defMove: 1.5, defRing: 1, smashPct: 75, clearPct: 20,
   };
   const PRESETS = {
     easy: { trainMode: 'standard', mode: 'fixed', fixed: 3 },
@@ -339,17 +375,23 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
 
   const $ = id => document.getElementById(id);
-  const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown', 'inhibitPct', 'fakePct', 'fakeDur', 'startI', 'startInhibitPct'];
+  const NUM_FIELDS = ['fixed', 'minI', 'maxI', 'count', 'duration', 'countdown', 'inhibitPct', 'fakePct', 'fakeDur', 'startI', 'startInhibitPct', 'defMove', 'defRing', 'smashPct', 'clearPct'];
   const BOOL_FIELDS = ['allowRepeat', 'realProb', 'beep', 'voice', 'vibrate', 'mirror', 'inhibit', 'fake'];
 
   function render() {
-    const startMode = S.trainMode === 'start';
+    const startMode = S.trainMode === 'start', defMode = S.trainMode === 'defense';
     document.querySelectorAll('#trainSeg button').forEach(b => b.classList.toggle('on', b.dataset.train === S.trainMode));
-    $('trainHint').textContent = startMode
-      ? '固定节奏快速换向，箭头只有黄色（正向）和红色（反向）两种。'
+    $('trainHint').textContent = startMode ? '固定节奏快速换向，箭头只有黄色（正向）和红色（反向）两种。'
+      : defMode ? '模拟被动防守：网前起球 → 对手进攻（接杀/吊球）→ 再起球……方向由流程决定。'
       : '完整六点步伐：可调间隔、按区域分色、反向指令与假动作。';
     $('startCard').classList.toggle('hidden', !startMode);
-    ['presetCard', 'intervalCard', 'inhibitCard', 'zoneHint'].forEach(id => $(id).classList.toggle('hidden', startMode));
+    $('defCard').classList.toggle('hidden', !defMode);
+    ['presetCard', 'intervalCard'].forEach(id => $(id).classList.toggle('hidden', startMode || defMode));
+    $('inhibitCard').classList.toggle('hidden', startMode);
+    $('dirCard').classList.toggle('hidden', defMode);
+    $('zoneHint').classList.toggle('hidden', startMode);
+    $('dropHint').textContent = `其余 ${Math.max(0, 100 - S.smashPct)}% 为吊球 → 回到网前起球`;
+    $('clearHint').textContent = `其余 ${Math.max(0, 100 - S.clearPct)}% 回到网前起球；平高之后直接接杀`;
     document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
     $('fixedBox').classList.toggle('hidden', S.mode !== 'fixed');
     $('randomBox').classList.toggle('hidden', S.mode !== 'random');
@@ -377,7 +419,8 @@
     const ie = $('intervalErr'), de = $('dirErr');
     if (S.trainMode !== 'start' && S.mode === 'random' && S.minI > S.maxI) { ie.textContent = '最短间隔不能大于最长间隔'; ie.classList.remove('hidden'); ok = false; }
     else ie.classList.add('hidden');
-    if (S.dirs.length === 0) { de.textContent = '至少启用一个方向'; de.classList.remove('hidden'); ok = false; }
+    if (S.trainMode === 'defense') de.classList.add('hidden'); // 防守练习方向由流程决定
+    else if (S.dirs.length === 0) { de.textContent = '至少启用一个方向'; de.classList.remove('hidden'); ok = false; }
     else if (!S.dirs.some(d => DIAG.includes(d))) { de.textContent = '左右不能连续出现，请至少再启用一个斜向方向'; de.classList.remove('hidden'); ok = false; }
     else if (S.dirs.length === 1 && !S.allowRepeat) { de.textContent = '只启用一个方向时，需要允许重复'; de.classList.remove('hidden'); ok = false; }
     else de.classList.add('hidden');
@@ -505,6 +548,7 @@
   const pickFrom = arr => arr[Math.floor(rand() * arr.length)];
 
   function nextInterval() {
+    if (S.trainMode === 'defense') return S.defMove * 1000;
     if (S.trainMode === 'start') return S.startI * 1000;
     if (S.mode === 'fixed') return S.fixed * 1000;
     const lo = Math.min(S.minI, S.maxI), hi = Math.max(S.minI, S.maxI);
@@ -551,8 +595,10 @@
   function reset() {
     clearTimeout(T.timer);
     Object.assign(T, { active: true, paused: false, current: null, last: null, n: 0, tally: {}, pausedTotal: 0,
-      pending: null, shown: null, nInhibit: 0, nFake: 0 });
+      pending: null, shown: null, nInhibit: 0, nFake: 0,
+      def: { next: 'lift', ringNext: false, counts: { lift: 0, drop: 0, smash: 0, clear: 0 } } });
     $('arrowPoly').setAttribute('points', '');
+    hideRing();
     ['pauseOverlay', 'doneOverlay'].forEach(id => $(id).classList.add('hidden'));
     countdown();
   }
@@ -585,8 +631,17 @@
     if (S.limit === 'count' && T.n >= S.count) return finish();
     if (S.limit === 'time' && elapsed() >= S.duration * 1000) return finish();
 
+    const defMode = S.trainMode === 'defense';
+    // 防守练习：起球/吊球之后先走一个圆环倒计时（对手准备进攻），不计次数
+    if (defMode && T.def.ringNext) {
+      T.def.ringNext = false;
+      showRing();
+      return later(step, S.defRing * 1000);
+    }
+    hideRing();
+
     T.last = T.current;
-    T.current = pickDir();                 // 真正要去的方向
+    T.current = defMode ? pickDefense() : pickDir(); // 真正要去的方向
     T.n++;
     T.tally[T.current] = (T.tally[T.current] || 0) + 1;
 
@@ -598,7 +653,7 @@
     // 假动作：真实箭头是斜向时才可能出现，先闪另一个斜向
     let fakeKey = null;
     if (!startMode && S.fake && DIAG.includes(shownKey) && chance(S.fakePct)) {
-      let pool = DIAG.filter(k => k !== shownKey && S.dirs.includes(k));
+      let pool = DIAG.filter(k => k !== shownKey && (defMode || S.dirs.includes(k)));
       if (!pool.length) pool = DIAG.filter(k => k !== shownKey);
       fakeKey = pickFrom(pool);
     }
@@ -616,6 +671,32 @@
       later(showReal, S.fakeDur * 1000);
     } else showReal();
   }
+
+  // 防守流程状态机：
+  //   lift(网前起球,前场) → ⏱ → attack：smashPct% 接杀(左/右)，其余 吊球(前场，=再次起球，再 ⏱)
+  //   接杀之后：clearPct% 后场平高(后场)，其余 网前起球
+  //   平高之后：直接接杀
+  function pickDefense() {
+    const D = T.def; let kind;
+    if (D.next === 'attack') kind = chance(S.smashPct) ? 'smash' : 'drop';
+    else if (D.next === 'afterSmash') kind = chance(S.clearPct) ? 'clear' : 'lift';
+    else if (D.next === 'afterClear') kind = 'smash';
+    else kind = 'lift';
+    D.counts[kind]++;
+    D.next = kind === 'smash' ? 'afterSmash' : kind === 'clear' ? 'afterClear' : 'attack';
+    D.ringNext = kind === 'lift' || kind === 'drop';
+    return pickFrom(kind === 'smash' ? SIDE : kind === 'clear' ? ['DL', 'DR'] : ['UL', 'UR']);
+  }
+
+  function showRing() {
+    $('arrowPoly').setAttribute('points', '');
+    T.shown = null;
+    const arc = $('ringArc');
+    arc.style.setProperty('--ring-dur', S.defRing + 's');
+    arc.classList.remove('run'); void arc.getBBox(); arc.classList.add('run');
+    $('ring').classList.remove('hidden');
+  }
+  function hideRing() { $('ring').classList.add('hidden'); $('ringArc').classList.remove('run'); }
 
   function screenDir(key) { return S.mirror ? MIRROR[key] : key; }
 
@@ -640,6 +721,7 @@
     clearTimeout(T.timer);
     T.remaining = Math.max(0, T.nextAt - performance.now());
     T.resumeFn = T.pending;
+    $('train').classList.add('paused');
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     $('pauseOverlay').classList.remove('hidden');
   }
@@ -648,6 +730,7 @@
     T.paused = false;
     T.pausedTotal += performance.now() - T.pauseStart;
     $('pauseOverlay').classList.add('hidden');
+    $('train').classList.remove('paused');
     keepAwake();
     if (T.phase === 'countdown') return countdown();
     later(T.resumeFn || step, T.remaining);
@@ -659,18 +742,24 @@
     if (S.beep) { beep(784, 0.15); setTimeout(() => beep(1046, 0.3), 180); }
     if (S.voice) speak('训练完成');
     buzz([100, 80, 200]);
-    const startMode = S.trainMode === 'start';
+    hideRing();
+    const startMode = S.trainMode === 'start', defMode = S.trainMode === 'defense';
     const extra = [(startMode ? S.startInhibitPct > 0 : S.inhibit) ? `反向 ${T.nInhibit} 次` : '',
       !startMode && S.fake ? `假动作 ${T.nFake} 次` : ''].filter(Boolean);
     $('doneSummary').textContent = [`共 ${T.n} 次`, `用时 ${fmtTime(elapsed() / 1000)}`, ...extra].join(' · ');
-    $('doneStats').innerHTML = Object.keys(DIRS).filter(k => S.dirs.includes(k))
-      .map(k => `<div style="color:${ZONE_COLOR[DIRS[k].zone]}">${DIRS[k].name}<b>${T.tally[k] || 0}</b></div>`).join('');
+    const cell = (color, name, v) => `<div style="color:${color}">${name}<b>${v}</b></div>`;
+    $('doneStats').innerHTML = defMode
+      ? [['front', '网前起球', 'lift'], ['front', '吊球', 'drop'], ['mid', '接杀', 'smash'], ['back', '后场平高', 'clear']]
+          .map(([z, n, k]) => cell(ZONE_COLOR[z], n, T.def.counts[k])).join('')
+      : Object.keys(DIRS).filter(k => S.dirs.includes(k)).map(k => cell(ZONE_COLOR[DIRS[k].zone], DIRS[k].name, T.tally[k] || 0)).join('');
     $('doneOverlay').classList.remove('hidden');
   }
 
   function stop(fromPop) {
     T.active = false; T.paused = false; T.phase = 'idle';
     clearTimeout(T.timer);
+    hideRing();
+    $('train').classList.remove('paused');
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     releaseAwake();
     exitFullscreen();
