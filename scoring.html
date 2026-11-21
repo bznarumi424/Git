@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>边看边记分</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#000; --card:#1C1E23; --card2:#2A2D33; --ink:#F5F7FA; --ink2:#9AA1AC; --line:#2A2D33; --off:#8E949E;
+  --blue:#3B7CF4; --blue-btn:#2F6FE4; --blue-t:rgba(59,124,244,.18); --yellow:#FFD54A;
+  --red:#F04438; --orange:#F79009; --purple:#8E5CF6; --green:#12B76A;
+  --st-bg:#13355F; --en-bg:#5A3A12; --en-ink:#FFD9A8; --cut:#3A3E46; --sb:#173A7A;
+  --f:-apple-system,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif;
+  --num:-apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--f);font-size:15px;line-height:1.35}
+body{overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+.hidden{display:none!important}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- 顶栏 ---------- */
+.tb{height:56px;display:flex;align-items:center;gap:8px;padding:0 16px}
+.rn{height:38px;padding:0 14px;border-radius:19px;background:var(--card);display:flex;align-items:baseline;gap:6px;font:700 17px/38px var(--num);white-space:nowrap}
+.rn small{font:500 13px var(--num);color:var(--ink2)}
+.tb .sp{flex:1}
+.pl{height:38px;padding:0 14px;border-radius:19px;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:650;background:var(--card);white-space:nowrap}
+.pl.p{background:var(--blue-btn);color:#fff}
+.pl.ic{width:38px;padding:0;justify-content:center}
+.pl:disabled{opacity:.35;cursor:not-allowed}
+.fname{color:var(--ink2);font-size:13px;max-width:28vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- 布局 ---------- */
+.app{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;padding:0 20px 16px;height:calc(100% - 56px)}
+.main{display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0}
+.side{display:flex;flex-direction:column;gap:10px;min-height:0}
+
+/* 记分牌 */
+.isb{flex:none;height:50px;border-radius:14px;background:var(--sb);color:#fff;display:flex;align-items:center;gap:12px;padding:0 10px 0 16px;font-size:17px;font-weight:650}
+.isb .g{font-size:13px;color:rgba(255,255,255,.65);font-weight:500;white-space:nowrap;min-width:52px}
+.isb .m{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;min-width:0}
+.isb .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:9em}
+.isb .gm{min-width:26px;height:26px;border-radius:6px;background:rgba(255,255,255,.14);display:grid;place-items:center;font:700 15px var(--num)}
+.isb b{font:800 26px var(--num);min-width:34px;text-align:center}
+.isb i{width:9px;height:9px;border-radius:50%;background:var(--yellow);flex:none}
+.isb i.no{visibility:hidden}
+.isb .swap{height:30px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;color:#fff;white-space:nowrap}
+
+/* 视频 */
+.vbox{flex:1;min-height:0;position:relative;background:#0b0c0e;border-radius:14px;overflow:hidden}
+.vbox video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.sub{position:absolute;left:50%;top:14%;transform:translateX(-50%);padding:2px 14px;border-radius:8px;background:rgba(0,0,0,.6);font:800 28px var(--num);letter-spacing:1px;pointer-events:none}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px;color:var(--ink2)}
+.empty b{color:var(--ink);font-size:20px}
+.empty p{margin:0;max-width:34em;line-height:1.6;font-size:14px}
+.drop{position:absolute;inset:8px;border:2px dashed var(--blue);border-radius:12px;display:grid;place-items:center;background:rgba(0,0,0,.6);font-size:18px;z-index:5;pointer-events:none}
+
+/* 播放行 + 全场进度 */
+.play{flex:none;display:flex;align-items:center;gap:8px}
+.pb{width:38px;height:38px;border-radius:50%;background:var(--card2);display:grid;place-items:center;flex:none}
+.pb svg{width:15px;height:15px;fill:currentColor}
+.skip{height:34px;padding:0 10px;border-radius:17px;background:var(--card);display:flex;align-items:center;gap:4px;font:700 13px var(--num);flex:none}
+.skip svg{width:16px;height:16px}
+.play .t{font:600 13px var(--num);color:var(--ink2);white-space:nowrap;min-width:92px}
+.chip{height:32px;padding:0 12px;border-radius:16px;background:var(--card);display:grid;place-items:center;font:700 13px var(--num);white-space:nowrap;flex:none}
+.chip:active{background:var(--ink);color:#000}
+.playrow2{display:flex;flex:1;min-width:0}
+.whole{flex:1;height:30px;position:relative;cursor:pointer;touch-action:none;min-width:80px}
+.whole .trk{position:absolute;left:0;right:0;top:13px;height:4px;border-radius:2px;background:var(--cut)}
+.whole .fill{position:absolute;left:0;top:13px;height:4px;border-radius:2px;background:#fff}
+.whole .seg{position:absolute;top:9px;height:12px;border-radius:3px;background:var(--blue);opacity:.75}
+.whole .seg.sel{opacity:1;box-shadow:0 0 0 2px #fff}
+.whole .seg.pend{background:repeating-linear-gradient(135deg,var(--blue) 0 4px,transparent 4px 8px)}
+.whole .mk{position:absolute;top:3px;width:2px;height:8px;background:var(--yellow);transform:translateX(-1px)}
+.whole .knob{position:absolute;top:15px;width:16px;height:16px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 3px #fff;transform:translate(-50%,-50%);pointer-events:none}
+
+/* 回合编号条 */
+.nums{flex:none;display:flex;gap:6px;overflow-x:auto;padding:3px 2px 4px;scrollbar-width:thin}
+.nb{flex:none;width:46px;height:52px;border-radius:12px;background:var(--card);border:2px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:700 16px var(--num)}
+.nb small{font:600 10.5px var(--num);color:var(--ink2);display:flex;align-items:center;gap:3px}
+.nb small i{width:7px;height:7px;border-radius:50%;flex:none}
+.nb.cur{border-color:#fff}
+.nb.new{box-shadow:0 0 0 2px var(--yellow)}
+.nb.pend{border:2px dashed var(--blue);color:#7FA9F7;font-size:12px}
+.nb.warn small::after{content:"⚠";color:var(--orange)}
+.nums .none{color:var(--ink2);font-size:13px;padding:16px 4px}
+
+/* 选中回合 + 微调 */
+.detail{flex:none;display:flex;flex-direction:column;gap:6px}
+.dhead{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);min-height:30px;flex-wrap:wrap}
+.dhead b{color:var(--ink);font-size:14px}
+.dhead .sp{flex:1}
+.dhead .act{height:30px;padding:0 10px;border-radius:9px;background:var(--card);color:var(--ink);font-size:13px;font-weight:600}
+.dhead .mks{display:flex;gap:4px}
+.dhead .mks button{height:24px;padding:0 6px;border-radius:6px;background:var(--card2);font:700 11px var(--num);color:var(--yellow)}
+.nudge{display:flex;gap:10px}
+.ng{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.ng small{font-size:13px;color:var(--ink2);font-weight:600;white-space:nowrap}
+.ng div{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ng button{height:32px;border-radius:10px;background:var(--st-bg);font:700 14px var(--num)}
+.ng.en button{background:var(--en-bg);color:var(--en-ink)}
+.nudge.off{opacity:.35;pointer-events:none}
+
+/* 播报行 + 原因 */
+.cast{flex:none;min-height:38px;border-radius:12px;background:var(--card);display:flex;align-items:center;gap:8px;padding:0 6px 0 12px;font-size:14px;font-weight:650}
+.cast .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cast .s{font:600 12px var(--num);color:var(--ink2);white-space:nowrap}
+.cast .u{height:28px;padding:0 10px;border-radius:9px;background:var(--blue-t);color:#7FA9F7;font-size:13px;font-weight:650}
+.cast .u:disabled{opacity:.3}
+.cast.hl{background:rgba(59,124,244,.22)}
+.reasons{flex:none;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--ink2)}
+.reasons button{height:28px;padding:0 9px;border-radius:9px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:5px}
+.reasons button i{width:7px;height:7px;border-radius:50%}
+.reasons button.on{box-shadow:inset 0 0 0 2px var(--blue);background:rgba(59,124,244,.15)}
+
+/* 选手卡 */
+.cards{flex:1;display:flex;flex-direction:column;gap:10px;min-height:0}
+.cd{flex:1;min-height:150px;background:var(--card);border-radius:20px;position:relative;display:flex;flex-direction:column;align-items:center;padding:12px 10px 56px;border:2px solid transparent;cursor:pointer;user-select:none}
+.cd .nm{font-size:15px;font-weight:650;display:flex;align-items:center;gap:6px;max-width:100%}
+.cd .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cd .nm i{width:8px;height:8px;border-radius:50%;background:var(--yellow);flex:none}
+.cd .rg{position:relative;width:104px;height:104px;margin-top:6px;display:grid;place-items:center;flex:none}
+.cd .rg svg{position:absolute;inset:0}
+.cd .rg b{font:800 42px var(--num)}
+.cd .side-l{position:absolute;left:12px;top:12px;font:600 11px var(--num);color:var(--ink2)}
+.cd .em{position:absolute;right:12px;top:10px;font:800 15px var(--num);color:#7FA9F7;font-style:normal}
+.cd.hit{background:rgba(59,124,244,.2);border-color:var(--blue)}
+.sv{position:absolute;bottom:10px;left:10px;right:10px;height:38px;border-radius:13px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font-size:15px;font-weight:700}
+.sv svg{width:18px;height:18px}
+.sv.run{background:var(--blue-t);color:#7FA9F7;box-shadow:inset 0 0 0 2px var(--blue);font:700 18px var(--num)}
+.keys{flex:none;font-size:12px;color:var(--ink2);line-height:1.9;background:var(--card);border-radius:14px;padding:10px 12px}
+.keys kbd{font:700 11px ui-monospace,Menlo,monospace;min-width:20px;height:20px;padding:0 5px;border-radius:5px;background:var(--card2);display:inline-grid;place-items:center;color:var(--ink);margin-right:2px}
+
+/* 弹窗 */
+dialog{border:0;border-radius:24px;background:#1C1E23;color:var(--ink);padding:18px 18px 20px;width:min(460px,calc(100% - 24px));max-height:calc(100% - 24px)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h3{margin:0 0 12px;font-size:20px;font-weight:750;display:flex;align-items:center;gap:8px}
+dialog h3 small{font-size:13px;color:var(--ink2);font-weight:500}
+dialog h3 .x{margin-left:auto;width:32px;height:32px;border-radius:50%;background:var(--card2);font-size:15px}
+.set{display:flex;align-items:center;gap:10px;min-height:46px}
+.set>b{width:86px;font-size:14px;font-weight:600;flex:none}
+.set input[type=text]{flex:1;min-width:0;height:38px;border-radius:11px;border:0;background:var(--card2);padding:0 12px}
+.set input[type=number]{width:80px;height:38px;border-radius:11px;border:0;background:var(--card2);padding:0 10px}
+.seg{flex:1;display:flex;background:var(--card2);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;text-align:center;padding:7px 0;border-radius:9px;font-size:14px;color:var(--ink2)}
+.seg button.on{background:#4A4F57;color:#fff;font-weight:650}
+.sws{flex:1;display:flex;gap:10px;align-items:center}
+.sws button{width:30px;height:30px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+.sws button.on{box-shadow:0 0 0 2px #1C1E23,0 0 0 4px #fff}
+.opt{border-radius:16px;background:var(--card2);padding:12px 14px;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:650;width:100%;text-align:left;margin-bottom:8px}
+.opt span{margin-left:auto;color:var(--ink2);font-size:13px;font-weight:500;text-align:right}
+.opt.on{box-shadow:inset 0 0 0 2px var(--blue);background:rgba(59,124,244,.15)}
+.cta{height:48px;border-radius:24px;background:var(--blue-btn);color:#fff;display:grid;place-items:center;font-size:16px;font-weight:700;width:100%;margin-top:6px}
+.cta:disabled{opacity:.4;cursor:not-allowed}
+.cta.sec{background:var(--card2)}
+.hint{font-size:12px;color:var(--ink2);line-height:1.6;margin:8px 2px 0}
+.chk{display:flex;align-items:center;gap:10px;font-size:14px;margin:4px 2px 8px}
+.chk input{width:18px;height:18px;accent-color:var(--blue)}
+.prog{height:6px;border-radius:3px;background:var(--card2);overflow:hidden;margin-top:12px}
+.prog div{height:100%;width:0;background:var(--blue);transition:width .2s}
+.plog{font:12px ui-monospace,Menlo,monospace;color:var(--ink2);margin-top:8px;min-height:1.5em;word-break:break-all}
+.row2{display:flex;gap:8px}
+.row2 .cta{flex:1}
+.danger{color:var(--red)}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);min-height:48px;border-radius:16px;background:#F5F7FA;color:#111418;display:flex;align-items:center;gap:10px;padding:0 6px 0 16px;font-size:15px;font-weight:600;box-shadow:0 10px 24px rgba(0,0,0,.5);z-index:50;max-width:calc(100% - 24px)}
+.toast .u{height:36px;padding:0 14px;border-radius:12px;background:#E3E9F5;color:#2B5FCC;font-weight:700}
+
+/* ---------- 手机竖屏 ---------- */
+@media (max-width:860px){
+  body{overflow:auto;height:auto}
+  .tb{padding:0 10px;height:52px}
+  .fname{display:none}
+  .app{display:flex;flex-direction:column;height:auto;padding:0 12px 28px;gap:8px}
+  .main,.side{display:contents}
+  .isb{order:1;height:44px;padding:0 8px 0 12px;font-size:15px;gap:8px;border-radius:12px}
+  .isb b{font-size:21px;min-width:26px}
+  .isb .gm{min-width:22px;height:22px;font-size:13px}
+  .isb .g{font-size:12px;min-width:0}
+  .vbox{order:2;flex:none;aspect-ratio:16/9;border-radius:0;margin:0 -12px}
+  .play{order:3}
+  .play .t{min-width:0;font-size:12px}
+  .play{flex-wrap:wrap;row-gap:4px}
+  .playrow2{order:10;flex-basis:100%}
+  .cast{order:5}
+  .reasons{order:6}
+  .cards{order:7;flex-direction:row;flex:none}
+  .cd{min-height:196px}
+  .nums{order:8}
+  .detail{order:9}
+  .keys{display:none}
+  .nudge{flex-direction:column;gap:6px}
+  .sub{font-size:20px}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-rw" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-ff" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-ball" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" transform="rotate(30 12 12)"><path d="M9.2 16.5 6 3.5h12l-3.2 13"/><path d="M10.4 16.5 10 3.5M13.6 16.5 14 3.5M7.2 9h9.6"/><path d="M8.8 16.5h6.4v1.2a3.2 3.2 0 0 1-6.4 0z" fill="currentColor"/></g></symbol>
+</svg>
+
+<div class="tb">
+  <span class="rn" id="rnLbl">回合 —<small></small></span>
+  <span class="fname" id="fname"></span>
+  <span class="sp"></span>
+  <button class="pl" id="openBtn">打开视频</button>
+  <button class="pl ic" id="setBtn" title="设置">⚙︎</button>
+  <button class="pl p" id="expBtn" disabled>导出</button>
+</div>
+
+<div class="app">
+  <div class="main">
+    <div class="isb" id="sb"></div>
+    <div class="vbox" id="vbox">
+      <video id="v" playsinline preload="auto"></video>
+      <span class="sub hidden" id="subOv"></span>
+      <div class="empty" id="empty">
+        <b>边看边记分</b>
+        <p>打开一场比赛录像。按「发球」打回合起点（往前留 0.5 秒），按谁得分就在这一帧打终点。记完可以直接按回合剪出视频。</p>
+        <button class="pl p" id="openBtn2">选择视频文件</button>
+        <p style="font-size:12px">也可以把视频拖进来 · 视频不会上传，全部在本机处理</p>
+      </div>
+      <div class="drop hidden" id="drop">松手打开视频</div>
+    </div>
+    <div class="play">
+      <button class="skip" id="rwBtn" title="后退 3 秒 (←)"><svg><use href="#i-rw"/></svg>3</button>
+      <button class="pb" id="playBtn" title="播放 / 暂停 (空格)"><svg viewBox="0 0 24 24" id="playIco"><path d="M7 4l13 8-13 8z"/></svg></button>
+      <button class="skip" id="ffBtn" title="快进 3 秒 (→)">3<svg><use href="#i-ff"/></svg></button>
+      <span class="t" id="tLbl">0:00 / 0:00</span>
+      <div class="playrow2"><div class="whole" id="whole"><div class="trk"></div><div id="segs"></div><div class="fill" id="wFill"></div><div class="knob" id="wKnob"></div></div></div>
+      <button class="chip" data-mark="IN" title="在这一帧打 IN 字幕">IN</button>
+      <button class="chip" data-mark="OUT" title="在这一帧打 OUT 字幕">OUT</button>
+    </div>
+    <div class="nums" id="nums"></div>
+    <div class="detail" id="detail">
+      <div class="dhead" id="dhead"></div>
+      <div class="nudge" id="nudge">
+        <div class="ng"><small>起点</small><div><button data-n="s,-3">−3s</button><button data-n="s,-1">−1s</button><button data-n="s,1">+1s</button><button data-n="s,3">+3s</button></div></div>
+        <div class="ng en"><small>终点</small><div><button data-n="e,-3">−3s</button><button data-n="e,-1">−1s</button><button data-n="e,1">+1s</button><button data-n="e,3">+3s</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="cast" id="cast"><span class="tx">还没开始记分</span><span class="s"></span><button class="u" id="undoBtn" disabled>撤销</button></div>
+    <div class="reasons" id="reasons"></div>
+    <div class="cards" id="cards"></div>
+    <div class="keys">
+      <kbd>空格</kbd>播放/暂停 · <kbd>←</kbd><kbd>→</kbd>3 秒<br>
+      <kbd>Shift</kbd>发球<br>
+      <kbd>Q</kbd>左方得分 · <kbd>U</kbd>右方得分<br>
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 左方带原因<br>
+      <kbd>I</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> 右方带原因<br>
+      <span style="opacity:.8">上 杀球 · 左 对手出界 · 下 对手下网 · 右 网前</span>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileIn" accept="video/*,.mkv,.mov,.mp4,.webm" class="hidden">
+<input type="file" id="jsonIn" accept=".json,application/json" class="hidden">
+<div class="toast hidden" id="toast"><span id="toastTx"></span><button class="u" id="toastBtn">撤销</button></div>
+
+<!-- 设置 -->
+<dialog id="setDlg">
+  <h3>设置 <button class="x" data-close>✕</button></h3>
+  <div class="set"><b>选手 A</b><input type="text" id="nameA" maxlength="12"></div>
+  <div class="set"><b>选手 B</b><input type="text" id="nameB" maxlength="12"></div>
+  <div class="set"><b>开场在左边</b><div class="seg" id="segLeft"><button data-v="0">A</button><button data-v="1">B</button></div></div>
+  <div class="set"><b>先发球</b><div class="seg" id="segServe"><button data-v="0">A</button><button data-v="1">B</button></div></div>
+  <div class="set"><b>局数</b><div class="seg" id="segGames"><button data-v="1">1 局</button><button data-v="3">3 局 2 胜</button></div></div>
+  <div class="set"><b>每局</b><div class="seg" id="segTarget"><button data-v="21">21 分</button><button data-v="15">15 分</button><button data-v="11">11 分</button></div></div>
+  <div class="set"><b>发球前留</b><input type="number" id="preRoll" min="0" max="5" step="0.1"><span style="color:var(--ink2);font-size:13px">秒</span></div>
+  <div class="set"><b>字幕颜色</b><div class="sws" id="subColor"></div></div>
+  <div class="set"><b>字幕大小</b><div class="seg" id="segSize"><button data-v="s">小</button><button data-v="m">中</button><button data-v="l">大</button></div></div>
+  <div class="set"><b>字幕时长</b><div class="seg" id="segDur"><button data-v="1">1 秒</button><button data-v="2">2 秒</button></div></div>
+  <p class="hint">局末自动换边；决胜局领先方到 11 分（15 分制为 8 分）自动换边。录像机位不同就点记分牌上的「⇄ 换边」。改选手、局制会按已记的回合重新算比分。</p>
+  <button class="cta sec danger" id="resetBtn" style="margin-top:12px">清空这场的记分</button>
+</dialog>
+
+<!-- 导出 -->
+<dialog id="expDlg">
+  <h3>导出 <small id="expSum"></small><button class="x" data-close>✕</button></h3>
+  <div id="expForm">
+    <button class="opt on" data-mode="each">每个回合一个文件<span id="expEachHint"></span></button>
+    <button class="opt" data-mode="merge">合并成一个集锦<span>一个文件</span></button>
+    <label class="chk" id="burnRow"><input type="checkbox" id="burnChk"> IN / OUT 字幕烧进画面</label>
+    <p class="hint" id="expHint"></p>
+    <button class="cta" id="expGo">开始导出视频</button>
+    <div class="row2" style="margin-top:8px">
+      <button class="cta sec" id="dlJson">比分 JSON</button>
+      <button class="cta sec" id="dlCsv">回合表 CSV</button>
+      <button class="cta sec" id="upJson">导入 JSON</button>
+    </div>
+  </div>
+  <div id="expRun" class="hidden">
+    <div id="expStage" style="font-weight:650"></div>
+    <div class="prog"><div id="expBar"></div></div>
+    <div class="plog" id="expLog"></div>
+    <button class="cta sec" id="expCancel" style="margin-top:14px">取消</button>
+  </div>
+</dialog>
+
+<script id="ffWorkerSrc" type="text/plain">
+// 极简 ffmpeg.wasm worker：直接加载 @ffmpeg/core（单线程版，不需要 SharedArrayBuffer）
+let core = null;
+self.onmessage = async (e) => {
+  const { id, type, data } = e.data;
+  const ok = (ret, transfer) => self.postMessage({ id, ok: true, ret }, transfer || []);
+  try {
+    if (type === 'load') {
+      // 不用 importScripts / URL：直接执行引擎源码 + 传入 wasm 二进制，双击本地 html（file://）也能跑
+      (0, eval)(data.coreSrc);
+      core = await self.createFFmpegCore({ wasmBinary: data.wasm });
+      core.setLogger((d) => self.postMessage({ type: 'log', data: d }));
+      core.setProgress((d) => self.postMessage({ type: 'progress', data: d }));
+      return ok(true);
+    }
+    if (!core) throw new Error('ffmpeg 没加载');
+    if (type === 'mount') { try { core.FS.mkdir('/in'); } catch (_) {} core.FS.mount(core.FS.filesystems.WORKERFS, { files: [data.file] }, '/in'); return ok(true); }
+    if (type === 'unmount') { try { core.FS.unmount('/in'); } catch (_) {} return ok(true); }
+    if (type === 'write') { core.FS.writeFile(data.path, data.bytes); return ok(true); }
+    if (type === 'exec') { core.setTimeout(-1); core.exec(...data.args); const r = core.ret; core.reset(); return ok(r); }
+    if (type === 'read') { const b = core.FS.readFile(data.path); return ok(b, [b.buffer]); }
+    if (type === 'rm') { try { core.FS.unlink(data.path); } catch (_) {} return ok(true); }
+    throw new Error('unknown ' + type);
+  } catch (err) { self.postMessage({ id, ok: false, err: String((err && err.message) || err) }); }
+};
+</script>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const V = $('#v');
+
+/* ================= 常量 ================= */
+const REASONS = {
+  smash: { label: '杀球', color: 'var(--red)', hex: '#F04438' },
+  out:   { label: '对手出界', color: 'var(--orange)', hex: '#F79009' },
+  net:   { label: '对手下网', color: 'var(--orange)', hex: '#F79009' },
+  front: { label: '网前', color: 'var(--purple)', hex: '#8E5CF6' },
+};
+// 键位：上 杀球 · 左 对手出界 · 下 对手下网 · 右 网前
+const KEYMAP = {
+  KeyQ: ['L', null], KeyW: ['L', 'smash'], KeyA: ['L', 'out'], KeyS: ['L', 'net'], KeyD: ['L', 'front'],
+  KeyU: ['R', null], KeyI: ['R', 'smash'], KeyJ: ['R', 'out'], KeyK: ['R', 'net'], KeyL: ['R', 'front'],
+};
+const SUB_COLORS = ['#FFFFFF', '#FFD54A', '#3B7CF4', '#F04438'];
+const SUB_SIZE = { s: 0.06, m: 0.085, l: 0.115 }; // 占视频高度比例
+const FF_VER = '0.12.6';
+const FF_BASE = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FF_VER}/dist/umd/`;
+
+/* ================= 状态 ================= */
+let file = null;          // 当前 File
+let key = null;           // localStorage key
+let M = null;             // match
+let pending = null;       // { start }  已按发球、还没得分
+let sel = null;           // 选中回合 index（null = 最后一个）
+let stopAt = null;        // 回放到这里自动停
+let lastHit = null;       // { player, at } 用于 +1 闪一下
+
+const defaultMatch = () => ({
+  v: 1,
+  names: ['A', 'B'],
+  cfg: { firstLeft: 0, firstServer: 0, games: 3, target: 21, preRoll: 0.5, subColor: '#FFD54A', subSize: 'm', subDur: 1 },
+  rallies: [],   // { start, end, winner, reason, noServe }
+  marks: [],     // { t, type: 'IN'|'OUT' }
+});
+
+function save() {
+  if (!key || !M) return;
+  try { localStorage.setItem(key, JSON.stringify(M)); } catch { toast('本机存储满了，先导出 JSON 备份'); }
+}
+
+/* ================= 比分推演（从回合列表重算，撤销/改判都一致） ================= */
+function replay() {
+  const c = M.cfg, cap = c.target === 21 ? 30 : c.target === 15 ? 21 : 15;
+  const need = Math.floor(c.games / 2) + 1;
+  let g = 0, sc = [0, 0], gw = [0, 0], server = c.firstServer, left = c.firstLeft, over = false, midSwapped = false;
+  const info = [];
+  for (const r of M.rallies) {
+    const before = { g, sc: [...sc], server, left };
+    if (over) { info.push({ ...before, score: [...sc], void: true }); continue; }
+    sc[r.winner]++;
+    server = r.winner;
+    const score = [...sc];
+    const hi = Math.max(...sc), lo = Math.min(...sc);
+    const gameEnd = (hi >= c.target && hi - lo >= 2) || hi >= cap;
+    let note = '';
+    if (gameEnd) {
+      gw[r.winner]++;
+      note = `第 ${g + 1} 局结束 ${sc[0]}:${sc[1]}`;
+      if (gw[r.winner] >= need) { over = true; note = `比赛结束 ${gw[0]}:${gw[1]}`; }
+      else { g++; sc = [0, 0]; left = 1 - left; midSwapped = false; }
+    } else if (gw[0] + gw[1] === c.games - 1 && !midSwapped && hi === Math.ceil(c.target / 2)) {
+      left = 1 - left; midSwapped = true; note = '决胜局换边';
+    }
+    info.push({ ...before, score, gameEnd, note });
+  }
+  return { info, state: { g, sc, gw, server, left, over } };
+}
+
+/* ================= 记分动作 ================= */
+const now = () => V.currentTime || 0;
+function serve() {
+  if (!ready()) return;
+  const st = replay().state;
+  if (st.over) { toast('比赛已经结束'); return; }
+  pending = { start: Math.max(0, now() - (+M.cfg.preRoll || 0)) };
+  sel = null;
+  render();
+}
+function point(side, reason) {
+  if (!ready()) return;
+  const st = replay().state;
+  if (st.over) { toast('比赛已经结束'); return; }
+  const winner = side === 'L' ? st.left : 1 - st.left;
+  const end = now();
+  let start, noServe = false;
+  if (pending && pending.start < end) start = pending.start;
+  else {
+    // 忘了按发球：起点先估一个（上一回合结束后，最多往前 8 秒），回合上标 ⚠ 方便微调
+    const prev = M.rallies[M.rallies.length - 1];
+    start = Math.max(prev ? prev.end : 0, end - 8, 0);
+    noServe = true;
+  }
+  M.rallies.push({ start: +start.toFixed(3), end: +end.toFixed(3), winner, reason: reason || null, noServe });
+  pending = null; sel = null;
+  lastHit = { player: winner, at: performance.now() };
+  save(); render();
+  if (noServe) toast('没按发球，起点是估的，可以微调');
+}
+function undo() {
+  if (pending) { pending = null; render(); return; }
+  const r = M.rallies.pop();
+  if (!r) return;
+  sel = null; save(); render();
+  toast('已撤销一分', '恢复', () => { M.rallies.push(r); save(); render(); });
+}
+function setReason(reason) {
+  const i = selIdx(); if (i < 0) return;
+  M.rallies[i].reason = reason; save(); render();
+}
+function addMark(type) {
+  if (!ready()) return;
+  const m = { t: +now().toFixed(3), type };
+  M.marks.push(m); M.marks.sort((a, b) => a.t - b.t);
+  save(); render();
+  toast(`${fmt(m.t)} 打了 ${type}`, '撤销', () => { M.marks = M.marks.filter(x => x !== m); save(); render(); });
+}
+function nudge(which, d) {
+  const i = selIdx(); if (i < 0) return;
+  const r = M.rallies[i], dur = V.duration || Infinity;
+  if (which === 's') { r.start = +Math.min(Math.max(0, r.start + d), r.end - 0.3).toFixed(3); r.noServe = false; seek(r.start); }
+  else { r.end = +Math.max(Math.min(dur, r.end + d), r.start + 0.3).toFixed(3); seek(Math.max(r.start, r.end - 0.05)); }
+  save(); render();
+}
+function deleteRally() {
+  const i = selIdx(); if (i < 0) return;
+  const [r] = M.rallies.splice(i, 1);
+  sel = null; save(); render();
+  toast(`删除了第 ${i + 1} 回合，后面的比分已重算`, '撤销', () => { M.rallies.splice(i, 0, r); save(); render(); });
+}
+const selIdx = () => (M && M.rallies.length ? (sel == null ? M.rallies.length - 1 : Math.min(sel, M.rallies.length - 1)) : -1);
+
+/* ================= 播放 ================= */
+const ready = () => { if (!file) { toast('先打开视频'); return false; } return true; };
+function seek(t) { if (!file) return; V.currentTime = Math.max(0, Math.min(t, (V.duration || t) - 0.01)); }
+function toggle() { if (!file) return; stopAt = null; V.paused ? V.play().catch(() => {}) : V.pause(); }
+function playRally(i) {
+  const r = M.rallies[i]; if (!r) return;
+  seek(r.start); stopAt = r.end; V.play().catch(() => {});
+}
+
+/* ================= 打开文件 ================= */
+function openFile(f) {
+  if (!f) return;
+  if (V.src.startsWith('blob:')) URL.revokeObjectURL(V.src);
+  file = f;
+  V.src = URL.createObjectURL(f);
+  key = 'sc.' + f.name + ':' + f.size;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
+  const prevNames = M ? M.names : null;
+  M = saved || defaultMatch();
+  if (!saved && prevNames) M.names = prevNames.slice();   // 新视频沿用上次的选手名
+  M.cfg = Object.assign(defaultMatch().cfg, M.cfg);
+  pending = null; sel = null; stopAt = null;
+  $('#empty').classList.add('hidden');
+  $('#fname').textContent = f.name;
+  $('#expBtn').disabled = false;
+  render();
+  if (saved && saved.rallies.length) toast(`已恢复 ${saved.rallies.length} 个回合`);
+  else if (!saved) setTimeout(() => openSettings(), 200);
+}
+V.addEventListener('error', () => { if (file) toast('这个浏览器放不了这个视频格式（试试 Chrome，或转成 MP4）'); });
+V.addEventListener('loadedmetadata', render);
+
+/* ================= 渲染 ================= */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function fmt(t, tenth) {
+  t = Math.max(0, t || 0);
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60);
+  const base = (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
+  return tenth ? base + '.' + Math.floor((t % 1) * 10) : base;
+}
+const ring = (score, target) => {
+  const C = 2 * Math.PI * 47, p = Math.min(1, score / target);
+  return `<svg viewBox="0 0 104 104"><circle cx="52" cy="52" r="47" fill="none" stroke="#33373E" stroke-width="5"/>` +
+    (p ? `<circle cx="52" cy="52" r="47" fill="none" stroke="var(--blue)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C * p} ${C}" transform="rotate(-90 52 52)"/>` : '') + '</svg>';
+};
+
+function render() {
+  const has = !!M;
+  const { info, state } = has ? replay() : { info: [], state: { g: 0, sc: [0, 0], gw: [0, 0], server: 0, left: 0, over: false } };
+  const names = has ? M.names : ['A', 'B'];
+  const L = state.left, R = 1 - state.left;
+
+  // 顶栏回合号
+  const n = has ? M.rallies.length : 0;
+  $('#rnLbl').innerHTML = has ? `回合 ${pending ? n + 1 : Math.max(n, 1)}<small>${pending ? '进行中' : n ? '共 ' + n : ''}</small>` : '回合 —<small></small>';
+
+  // 记分牌（左 = 现在在画面左边的人）
+  const gTxt = state.over ? '已结束' : `第 ${state.g + 1} 局`;
+  $('#sb').innerHTML = `<span class="g">${gTxt}</span><span class="m">
+      <span class="gm">${state.gw[L]}</span><span class="nm">${esc(names[L])}</span><i class="${state.server === L && !state.over ? '' : 'no'}"></i>
+      <b>${state.sc[L]}</b>:<b>${state.sc[R]}</b>
+      <i class="${state.server === R && !state.over ? '' : 'no'}"></i><span class="nm">${esc(names[R])}</span><span class="gm">${state.gw[R]}</span></span>
+      <button class="swap" id="swapBtn" title="左右对调">⇄ 换边</button>`;
+
+  // 选手卡
+  const hitFresh = lastHit && performance.now() - lastHit.at < 900;
+  const card = (p, sideLbl) => {
+    const isSrv = state.server === p && !state.over;
+    const hit = hitFresh && lastHit.player === p;
+    let sv = '';
+    if (isSrv) sv = pending ? `<button class="sv run" data-serve><svg><use href="#i-ball"/></svg><span id="runT">${fmt(now() - pending.start)}</span></button>`
+                            : `<button class="sv" data-serve><svg><use href="#i-ball"/></svg>发球</button>`;
+    return `<div class="cd ${hit ? 'hit' : ''}" data-side="${sideLbl}" title="点卡片 = ${esc(names[p])} 得分">
+      <span class="side-l">${sideLbl === 'L' ? '左 · Q' : '右 · U'}</span>${hit ? '<em class="em">+1</em>' : ''}
+      <div class="nm">${isSrv ? '<i></i>' : ''}<span>${esc(names[p])}</span></div>
+      <div class="rg">${ring(state.sc[p], M ? M.cfg.target : 21)}<b>${state.sc[p]}</b></div>${sv}</div>`;
+  };
+  $('#cards').innerHTML = card(L, 'L') + card(R, 'R');
+  if (hitFresh) setTimeout(render, 950 - (performance.now() - lastHit.at));
+
+  // 播报行
+  const last = has && M.rallies.length ? M.rallies[M.rallies.length - 1] : null;
+  const li = info[info.length - 1];
+  const cast = $('#cast');
+  if (pending) {
+    cast.querySelector('.tx').textContent = `${names[state.server]} 发球中…`;
+    cast.querySelector('.s').textContent = `${state.sc[L]} : ${state.sc[R]}`;
+  } else if (last) {
+    cast.querySelector('.tx').textContent = `${names[last.winner]} ${last.reason ? REASONS[last.reason].label : ''}得分${li.note ? ' · ' + li.note : ''}`;
+    cast.querySelector('.s').textContent = `${li.score[li.left]} : ${li.score[1 - li.left]}`;
+  } else {
+    cast.querySelector('.tx').textContent = file ? '按「发球」开始' : '还没开始记分';
+    cast.querySelector('.s').textContent = '';
+  }
+  cast.classList.toggle('hl', !!hitFresh);
+  $('#undoBtn').disabled = !(pending || (has && M.rallies.length));
+
+  // 原因（作用于选中回合）
+  const si = selIdx();
+  const sr = si >= 0 ? M.rallies[si] : null;
+  $('#reasons').innerHTML = `<span>第 ${si >= 0 ? si + 1 : '—'} 回合原因</span>` +
+    Object.entries(REASONS).map(([k, r]) => `<button data-reason="${k}" class="${sr && sr.reason === k ? 'on' : ''}" ${sr ? '' : 'disabled'}><i style="background:${r.color}"></i>${r.label}</button>`).join('') +
+    `<button data-reason="" class="${sr && !sr.reason ? 'on' : ''}" ${sr ? '' : 'disabled'}>无</button>`;
+
+  // 编号条
+  const nums = $('#nums');
+  if (!has || (!M.rallies.length && !pending)) nums.innerHTML = '<span class="none">回合会出现在这里，点编号跳过去、微调起止点</span>';
+  else {
+    nums.innerHTML = M.rallies.map((r, i) => {
+      const it = info[i];
+      const col = r.reason ? REASONS[r.reason].color : 'var(--blue)';
+      return `<button class="nb ${i === si ? 'cur' : ''} ${r.noServe ? 'warn' : ''}" data-i="${i}" title="${esc(names[r.winner])} ${r.reason ? REASONS[r.reason].label : ''}得分">${i + 1}<small><i style="background:${col}"></i>${it.void ? '—' : it.score[0] + ':' + it.score[1]}</small></button>`;
+    }).join('') + (pending ? `<span class="nb pend">发球中</span>` : '');
+    const cur = nums.querySelector('.nb.cur') || nums.lastElementChild;
+    if (cur && sel == null) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  // 选中回合详情
+  const dh = $('#dhead');
+  if (sr) {
+    const it = info[si];
+    const mk = M.marks.filter(m => m.t >= sr.start && m.t <= sr.end);
+    dh.innerHTML = `<b>第 ${si + 1} 回合</b><span>${esc(names[sr.winner])} ${sr.reason ? REASONS[sr.reason].label : ''}得分 · ${it.void ? '赛后' : `第 ${it.g + 1} 局 ${it.score[0]}:${it.score[1]}`}</span>
+      <span>${fmt(sr.start, 1)} – ${fmt(sr.end, 1)}（${(sr.end - sr.start).toFixed(1)} 秒）${sr.noServe ? ' · <span style="color:var(--orange)">起点是估的</span>' : ''}</span>
+      ${mk.length ? `<span class="mks">${mk.map(m => `<button data-delmark="${M.marks.indexOf(m)}" title="删除这个标记">${m.type} ${fmt(m.t - sr.start, 1)} ✕</button>`).join('')}</span>` : ''}
+      <span class="sp"></span>
+      <button class="act" data-act="replay">▶ 回放</button><button class="act" data-act="export1">⬇ 导出</button><button class="act" data-act="del">🗑</button>`;
+  } else dh.innerHTML = '<span>选中一个回合后，可以在这里微调起点和终点</span>';
+  $('#nudge').classList.toggle('off', !sr);
+
+  renderBar(si);
+}
+
+function renderBar(si) {
+  const d = V.duration || 0;
+  const segs = $('#segs');
+  if (!M || !d) { segs.innerHTML = ''; return; }
+  const pct = t => (t / d * 100).toFixed(3) + '%';
+  segs.innerHTML = M.rallies.map((r, i) => `<div class="seg ${i === si ? 'sel' : ''}" style="left:${pct(r.start)};width:${pct(Math.max(r.end - r.start, d / 500))};${r.reason ? 'background:' + REASONS[r.reason].color : ''}"></div>`).join('') +
+    (pending ? `<div class="seg pend" style="left:${pct(pending.start)};width:${pct(Math.max(now() - pending.start, d / 500))}"></div>` : '') +
+    M.marks.map(m => `<div class="mk" style="left:${pct(m.t)}"></div>`).join('');
+}
+
+/* 每帧：时间、进度、发球计时、IN/OUT 字幕、回放自动停 */
+function tick() {
+  const t = now(), d = V.duration || 0;
+  $('#tLbl').textContent = `${fmt(t)} / ${fmt(d)}`;
+  const p = d ? (t / d * 100) + '%' : '0%';
+  $('#wFill').style.width = p; $('#wKnob').style.left = p;
+  $('#playIco').innerHTML = V.paused ? '<path d="M7 4l13 8-13 8z"/>' : '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
+  if (pending) { const el = $('#runT'); if (el) el.textContent = fmt(t - pending.start); }
+  if (stopAt != null && t >= stopAt) { V.pause(); stopAt = null; }
+  // 字幕叠加
+  const ov = $('#subOv');
+  const m = M && M.marks.find(m => t >= m.t && t < m.t + (+M.cfg.subDur || 1));
+  if (m) {
+    ov.textContent = m.type; ov.style.color = M.cfg.subColor;
+    ov.style.fontSize = Math.round(($('#vbox').clientHeight || 300) * SUB_SIZE[M.cfg.subSize] * 0.9) + 'px';
+    ov.classList.remove('hidden');
+  } else ov.classList.add('hidden');
+  requestAnimationFrame(tick);
+}
+let barTimer = 0;
+V.addEventListener('timeupdate', () => { if (pending && Date.now() - barTimer > 500) { barTimer = Date.now(); renderBar(selIdx()); } });
+
+/* ================= 事件 ================= */
+$('#openBtn').onclick = $('#openBtn2').onclick = () => $('#fileIn').click();
+$('#fileIn').onchange = e => { openFile(e.target.files[0]); e.target.value = ''; };
+$('#playBtn').onclick = toggle;
+$('#rwBtn').onclick = () => seek(now() - 3);
+$('#ffBtn').onclick = () => seek(now() + 3);
+$('#undoBtn').onclick = undo;
+document.querySelectorAll('[data-mark]').forEach(b => b.onclick = () => addMark(b.dataset.mark));
+
+$('#sb').addEventListener('click', e => {
+  if (e.target.closest('#swapBtn') && M) { M.cfg.firstLeft = 1 - M.cfg.firstLeft; save(); render(); toast('已左右对调（Q / U 跟着换）'); }
+});
+$('#cards').addEventListener('click', e => {
+  if (e.target.closest('[data-serve]')) { serve(); return; }
+  const cd = e.target.closest('.cd'); if (cd) point(cd.dataset.side, null);
+});
+$('#reasons').addEventListener('click', e => { const b = e.target.closest('[data-reason]'); if (b && !b.disabled) setReason(b.dataset.reason || null); });
+$('#nums').addEventListener('click', e => {
+  const b = e.target.closest('[data-i]'); if (!b) return;
+  sel = +b.dataset.i; stopAt = null; V.pause(); seek(M.rallies[sel].start); render();
+});
+$('#nudge').addEventListener('click', e => { const b = e.target.closest('[data-n]'); if (!b) return; const [w, d] = b.dataset.n.split(','); nudge(w, +d); });
+$('#dhead').addEventListener('click', e => {
+  const dm = e.target.closest('[data-delmark]');
+  if (dm) { M.marks.splice(+dm.dataset.delmark, 1); save(); render(); return; }
+  const a = e.target.closest('[data-act]'); if (!a) return;
+  const i = selIdx();
+  if (a.dataset.act === 'replay') playRally(i);
+  if (a.dataset.act === 'del') deleteRally();
+  if (a.dataset.act === 'export1') runExport('each', [i]);
+});
+
+// 全场进度条拖动
+(() => {
+  const w = $('#whole'); let drag = false;
+  const at = e => { const r = w.getBoundingClientRect(); seek(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (V.duration || 0)); };
+  w.addEventListener('pointerdown', e => { if (!file) return; drag = true; w.setPointerCapture(e.pointerId); stopAt = null; at(e); });
+  w.addEventListener('pointermove', e => drag && at(e));
+  w.addEventListener('pointerup', () => { drag = false; });
+})();
+
+// 键盘：空格 / ←→ / Shift 发球 / Q U WASD IJKL 得分
+window.addEventListener('keydown', e => {
+  if (document.querySelector('dialog[open]')) return;
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) toggle(); return; }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); seek(now() - 3); return; }
+  if (e.code === 'ArrowRight') { e.preventDefault(); seek(now() + 3); return; }
+  if (e.repeat) return;
+  if (e.key === 'Shift') { e.preventDefault(); serve(); return; }
+  const k = KEYMAP[e.code];
+  if (k) { e.preventDefault(); point(k[0], k[1]); }
+});
+
+// 拖放
+let dragN = 0;
+const isFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+addEventListener('dragenter', e => { if (isFiles(e)) { dragN++; $('#drop').classList.remove('hidden'); } });
+addEventListener('dragleave', e => { if (isFiles(e) && --dragN <= 0) { dragN = 0; $('#drop').classList.add('hidden'); } });
+addEventListener('dragover', e => { if (isFiles(e)) e.preventDefault(); });
+addEventListener('drop', e => { if (!isFiles(e)) return; e.preventDefault(); dragN = 0; $('#drop').classList.add('hidden'); openFile(e.dataTransfer.files[0]); });
+
+// Toast
+let toastT;
+function toast(msg, act, fn) {
+  $('#toastTx').textContent = msg;
+  const b = $('#toastBtn');
+  b.classList.toggle('hidden', !act); b.textContent = act || '';
+  b.onclick = () => { $('#toast').classList.add('hidden'); fn && fn(); };
+  $('#toast').classList.remove('hidden');
+  clearTimeout(toastT); toastT = setTimeout(() => $('#toast').classList.add('hidden'), act ? 3000 : 2400);
+}
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+
+/* ================= 设置 ================= */
+function segBind(id, getter, setter) {
+  const el = $(id);
+  el.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(getter()) === b.dataset.v));
+  el.onclick = e => { const b = e.target.closest('button'); if (!b) return; setter(b.dataset.v); save(); openSettings(true); render(); };
+}
+function openSettings(refreshOnly) {
+  if (!M) { M = defaultMatch(); }
+  const c = M.cfg;
+  $('#nameA').value = M.names[0]; $('#nameB').value = M.names[1];
+  segBind('#segLeft', () => c.firstLeft, v => c.firstLeft = +v);
+  segBind('#segServe', () => c.firstServer, v => c.firstServer = +v);
+  segBind('#segGames', () => c.games, v => c.games = +v);
+  segBind('#segTarget', () => c.target, v => c.target = +v);
+  segBind('#segSize', () => c.subSize, v => c.subSize = v);
+  segBind('#segDur', () => c.subDur, v => c.subDur = +v);
+  $('#preRoll').value = c.preRoll;
+  $('#subColor').innerHTML = SUB_COLORS.map(x => `<button data-v="${x}" class="${x === c.subColor ? 'on' : ''}" style="background:${x}"></button>`).join('');
+  $('#subColor').onclick = e => { const b = e.target.closest('button'); if (!b) return; c.subColor = b.dataset.v; save(); openSettings(true); };
+  if (!refreshOnly) $('#setDlg').showModal();
+}
+$('#setBtn').onclick = () => openSettings();
+$('#nameA').oninput = e => { M.names[0] = e.target.value.trim() || 'A'; save(); render(); };
+$('#nameB').oninput = e => { M.names[1] = e.target.value.trim() || 'B'; save(); render(); };
+$('#preRoll').onchange = e => { M.cfg.preRoll = Math.max(0, Math.min(5, +e.target.value || 0)); e.target.value = M.cfg.preRoll; save(); };
+$('#resetBtn').onclick = () => {
+  if (!M || !confirm(`清空这场的 ${M.rallies.length} 个回合和 ${M.marks.length} 个字幕标记？`)) return;
+  M.rallies = []; M.marks = []; pending = null; sel = null; save(); render(); $('#setDlg').close();
+};
+
+/* ================= 导出：比分数据 ================= */
+const baseName = () => (file ? file.name.replace(/\.[^.]+$/, '') : '比赛');
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function rallyTable() {
+  const { info } = replay();
+  return M.rallies.map((r, i) => {
+    const it = info[i];
+    return { no: i + 1, game: it.g + 1, start: r.start, end: r.end, dur: +(r.end - r.start).toFixed(3),
+      server: M.names[it.server], winner: M.names[r.winner], reason: r.reason ? REASONS[r.reason].label : '',
+      scoreA: it.score[0], scoreB: it.score[1], note: it.note || '', estimatedStart: !!r.noServe,
+      marks: M.marks.filter(m => m.t >= r.start && m.t <= r.end).map(m => m.type + '@' + (m.t - r.start).toFixed(2)).join(' ') };
+  });
+}
+$('#dlJson').onclick = () => download(new Blob([JSON.stringify({ app: 'score-clip', video: file && { name: file.name, size: file.size }, ...M, table: rallyTable() }, null, 1)], { type: 'application/json' }), baseName() + '_比分.json');
+$('#dlCsv').onclick = () => {
+  const rows = rallyTable();
+  const head = ['回合', '局', '起点秒', '终点秒', '时长', '发球', '得分方', '原因', M.names[0], M.names[1], '备注', '起点是估的', '字幕'];
+  const q = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v;
+  const csv = [head, ...rows.map(r => [r.no, r.game, r.start, r.end, r.dur, r.server, r.winner, r.reason, r.scoreA, r.scoreB, r.note, r.estimatedStart ? '是' : '', r.marks])].map(r => r.map(q).join(',')).join('\n');
+  download(new Blob(['﻿' + csv], { type: 'text/csv' }), baseName() + '_回合表.csv');
+};
+$('#upJson').onclick = () => $('#jsonIn').click();
+$('#jsonIn').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!Array.isArray(d.rallies)) throw 0;
+    M = { v: 1, names: d.names || ['A', 'B'], cfg: Object.assign(defaultMatch().cfg, d.cfg), rallies: d.rallies, marks: d.marks || [] };
+    pending = null; sel = null; save(); render(); $('#expDlg').close();
+    toast(`导入了 ${M.rallies.length} 个回合`);
+  } catch { toast('不是这个工具导出的 JSON'); }
+};
+
+/* ================= 导出：剪视频（ffmpeg.wasm，全部在本机） ================= */
+let ff = null, ffUrls = null, ffSeq = 0, ffWait = {}, ffProgress = null, expMode = 'each', cancelled = false;
+
+async function fetchBuf(url, onProg) {
+  let res = null, cache = null;
+  try { if ('caches' in window) { cache = await caches.open('ffmpeg-core-' + FF_VER); res = await cache.match(url); } } catch { cache = null; }
+  if (res) return res.arrayBuffer();
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('下载剪辑引擎失败 ' + r.status);
+  const total = +r.headers.get('content-length') || 0;
+  const reader = r.body.getReader(); const chunks = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; onProg && onProg(got, total); }
+  const buf = await new Blob(chunks).arrayBuffer();
+  try { cache && await cache.put(url, new Response(buf)); } catch {}
+  return buf;
+}
+function ffCall(type, data, transfer) {
+  return new Promise((res, rej) => { const id = ++ffSeq; ffWait[id] = { res, rej }; ff.postMessage({ id, type, data }, transfer || []); });
+}
+async function ensureFF(status) {
+  if (ff) return;
+  if (!ffUrls) {
+    status('第一次使用要下载剪辑引擎（约 31MB，之后走缓存）…', 0);
+    const coreSrc = new TextDecoder().decode(await fetchBuf(FF_BASE + 'ffmpeg-core.js'));
+    const wasm = await fetchBuf(FF_BASE + 'ffmpeg-core.wasm', (g, t) => status(`下载剪辑引擎 ${(g / 1048576).toFixed(1)} / ${t ? (t / 1048576).toFixed(1) : '≈31'} MB`, t ? g / t : 0));
+    ffUrls = { coreSrc, wasm };
+  }
+  status('启动剪辑引擎…', 1);
+  ff = new Worker(URL.createObjectURL(new Blob([$('#ffWorkerSrc').textContent], { type: 'text/javascript' })));
+  ff.onmessage = ({ data }) => {
+    if (data.type === 'log') { $('#expLog').textContent = data.data.message.slice(0, 160); return; }
+    if (data.type === 'progress') { ffProgress && ffProgress(data.data.progress); return; }
+    const w = ffWait[data.id]; if (!w) return; delete ffWait[data.id];
+    data.ok ? w.res(data.ret) : w.rej(new Error(data.err));
+  };
+  ff.onerror = e => { Object.values(ffWait).forEach(w => w.rej(new Error(e.message || 'worker 出错'))); ffWait = {}; };
+  await ffCall('load', ffUrls);
+}
+function killFF() { if (ff) { ff.terminate(); ff = null; } Object.values(ffWait).forEach(w => w.rej(new Error('已取消'))); ffWait = {}; }
+
+// 用 canvas 画字幕图片，再用 overlay 叠上去（不依赖字体文件）
+async function subPNG(type) {
+  const h = V.videoHeight || 720;
+  const fs = Math.round(h * SUB_SIZE[M.cfg.subSize]);
+  const c = document.createElement('canvas'), x = c.getContext('2d');
+  x.font = `800 ${fs}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
+  const w = Math.ceil(x.measureText(type).width + fs * 0.9), hh = Math.ceil(fs * 1.35);
+  c.width = w + (w % 2); c.height = hh + (hh % 2);
+  x.fillStyle = 'rgba(0,0,0,.6)';
+  const r = fs * 0.28; x.beginPath(); x.roundRect ? x.roundRect(0, 0, c.width, c.height, r) : x.rect(0, 0, c.width, c.height); x.fill();
+  x.font = `800 ${fs}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
+  x.fillStyle = M.cfg.subColor; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(type, c.width / 2, c.height / 2 + fs * 0.04);
+  const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+function clipName(i, ext) {
+  const r = M.rallies[i], it = replay().info[i];
+  const nm = s => s.replace(/[\\/:*?"<>|\s]/g, '');
+  return `${nm(baseName())}_R${String(i + 1).padStart(2, '0')}_第${it.g + 1}局${it.score[0]}-${it.score[1]}_${nm(M.names[r.winner])}${r.reason ? REASONS[r.reason].label : '得分'}.${ext}`;
+}
+
+async function pickSaver(count) {
+  // Chrome 电脑版：选一个文件夹，一次写进去；其它浏览器：逐个下载
+  if (count > 1 && window.showDirectoryPicker) {
+    try {
+      const dir = await showDirectoryPicker({ mode: 'readwrite', id: 'score-clips' });
+      return async (blob, name) => { const fh = await dir.getFileHandle(name, { create: true }); const ws = await fh.createWritable(); await ws.write(blob); await ws.close(); };
+    } catch (e) { if (e.name === 'AbortError') return null; }
+  }
+  return async (blob, name) => { download(blob, name); await new Promise(r => setTimeout(r, 450)); };
+}
+
+function updateExpForm() {
+  document.querySelectorAll('#expForm [data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === expMode));
+  const n = M.rallies.length, total = M.rallies.reduce((s, r) => s + r.end - r.start, 0);
+  const withMarks = M.rallies.filter(r => M.marks.some(m => m.t >= r.start && m.t <= r.end)).length;
+  $('#expSum').textContent = `${n} 个回合 · 共 ${fmt(total)}`;
+  $('#expEachHint').textContent = `${n} 个文件`;
+  $('#burnRow').classList.toggle('hidden', expMode !== 'each' || !withMarks);
+  $('#expHint').textContent = expMode === 'merge'
+    ? '直接拷贝画面不重新编码，很快、无损。起点会对齐到最近的关键帧（一般早不到 1 秒）。集锦里不烧字幕。'
+    : (withMarks && $('#burnChk').checked
+      ? `有 ${withMarks} 个回合带 IN/OUT，这些回合要重新编码（4K 或 HEVC 会很慢），其余回合直接拷贝。`
+      : '直接拷贝画面不重新编码，很快、无损。起点会对齐到最近的关键帧（一般早不到 1 秒）。');
+  $('#expGo').disabled = !n;
+}
+$('#expBtn').onclick = () => { if (!M) return; $('#expForm').classList.remove('hidden'); $('#expRun').classList.add('hidden'); updateExpForm(); $('#expDlg').showModal(); };
+$('#expForm').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { expMode = b.dataset.mode; updateExpForm(); } });
+$('#burnChk').onchange = updateExpForm;
+$('#expGo').onclick = () => runExport(expMode);
+$('#expCancel').onclick = () => { cancelled = true; killFF(); };
+$('#expDlg').addEventListener('cancel', e => { if (!$('#expRun').classList.contains('hidden')) e.preventDefault(); });
+
+async function runExport(mode, only) {
+  if (!file || !M.rallies.length) return;
+  const idx = only || M.rallies.map((_, i) => i);
+  const burn = mode === 'each' && $('#burnChk').checked;
+  const ext = (file.name.match(/\.([a-z0-9]+)$/i) || [, 'mp4'])[1].toLowerCase();
+  const saver = await pickSaver(mode === 'each' ? idx.length : 1);
+  if (!saver) return;
+  if (!$('#expDlg').open) $('#expDlg').showModal();
+  $('#expForm').classList.add('hidden'); $('#expRun').classList.remove('hidden');
+  const stage = (t, p) => { $('#expStage').textContent = t; if (p != null) $('#expBar').style.width = (p * 100).toFixed(1) + '%'; };
+  cancelled = false;
+  V.pause();
+  try {
+    await ensureFF(stage);
+    await ffCall('unmount');
+    await ffCall('mount', { file });
+    const src = '/in/' + file.name;
+    if (mode === 'merge') {
+      const q = s => "'" + s.replace(/'/g, "'\\''") + "'";
+      const list = 'ffconcat version 1.0\n' + idx.map(i => { const r = M.rallies[i]; return `file ${q(src)}\ninpoint ${r.start.toFixed(3)}\noutpoint ${r.end.toFixed(3)}\n`; }).join('');
+      await ffCall('write', { path: '/list.txt', bytes: new TextEncoder().encode(list) });
+      stage(`合并 ${idx.length} 个回合…`, 0);
+      ffProgress = p => stage(`合并 ${idx.length} 个回合…`, Math.max(0, Math.min(1, p)));
+      const out = '/out.' + ext;
+      const rc = await ffCall('exec', { args: ['-f', 'concat', '-safe', '0', '-i', '/list.txt', '-map', '0:v:0', '-map', '0:a?', '-c', 'copy', '-avoid_negative_ts', 'make_zero', out] });
+      if (rc !== 0) throw new Error('ffmpeg 返回 ' + rc);
+      const bytes = await ffCall('read', { path: out }); await ffCall('rm', { path: out });
+      await saver(new Blob([bytes], { type: 'video/' + (ext === 'mov' ? 'quicktime' : ext) }), `${baseName()}_集锦_${idx.length}回合.${ext}`);
+    } else {
+      const pngs = {};
+      for (let k = 0; k < idx.length; k++) {
+        if (cancelled) break;
+        const i = idx[k], r = M.rallies[i];
+        const marks = burn ? M.marks.filter(m => m.t >= r.start && m.t <= r.end) : [];
+        const reencode = marks.length > 0;
+        const oext = reencode ? 'mp4' : ext;
+        const name = clipName(i, oext), out = '/clip.' + oext;
+        const label = `${k + 1} / ${idx.length}  ${name}`;
+        stage(label, k / idx.length);
+        ffProgress = p => stage(label, (k + Math.max(0, Math.min(1, p))) / idx.length);
+        let args;
+        const dur = (r.end - r.start).toFixed(3);
+        if (!reencode) {
+          args = ['-ss', r.start.toFixed(3), '-i', src, '-t', dur, '-map', '0:v:0', '-map', '0:a?', '-c', 'copy', '-avoid_negative_ts', 'make_zero', out];
+        } else {
+          args = ['-ss', r.start.toFixed(3), '-i', src];
+          for (const m of marks) {
+            if (!pngs[m.type]) { pngs[m.type] = '/sub_' + m.type + '.png'; await ffCall('write', { path: pngs[m.type], bytes: await subPNG(m.type) }); }
+            args.push('-i', pngs[m.type]);
+          }
+          let chain = '[0:v]', fc = [];
+          marks.forEach((m, j) => {
+            const a = Math.max(0, m.t - r.start), b = a + (+M.cfg.subDur || 1);
+            const o = j === marks.length - 1 ? '[vout]' : `[v${j}]`;
+            fc.push(`${chain}[${j + 1}:v]overlay=(W-w)/2:H*0.12:enable='between(t,${a.toFixed(2)},${b.toFixed(2)})'${o}`);
+            chain = `[v${j}]`;
+          });
+          args.push('-t', dur, '-filter_complex', fc.join(';'), '-map', '[vout]', '-map', '0:a?',
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '20', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out);
+        }
+        const rc = await ffCall('exec', { args });
+        if (rc !== 0) throw new Error(`第 ${i + 1} 回合失败（ffmpeg 返回 ${rc}）`);
+        const bytes = await ffCall('read', { path: out }); await ffCall('rm', { path: out });
+        await saver(new Blob([bytes], { type: oext === 'mov' ? 'video/quicktime' : 'video/' + oext }), name);
+      }
+    }
+    await ffCall('unmount');
+    stage(cancelled ? '已取消' : '导出完成 ✓', 1);
+    $('#expLog').textContent = '';
+    $('#expCancel').textContent = '关闭';
+    $('#expCancel').onclick = () => { $('#expDlg').close(); $('#expCancel').textContent = '取消'; $('#expCancel').onclick = () => { cancelled = true; killFF(); }; };
+  } catch (err) {
+    if (cancelled) { stage('已取消', 0); }
+    else { stage('导出失败：' + err.message, 0); }
+    killFF();
+    $('#expCancel').textContent = '关闭';
+    $('#expCancel').onclick = () => { $('#expDlg').close(); $('#expCancel').textContent = '取消'; $('#expCancel').onclick = () => { cancelled = true; killFF(); }; };
+  } finally { ffProgress = null; }
+}
+
+/* ================= 启动 ================= */
+render();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
