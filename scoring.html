@@ -33,12 +33,13 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stro
 .pl.p{background:var(--blue-btn);color:#fff}
 .pl.ic{width:38px;padding:0;justify-content:center}
 .pl:disabled{opacity:.35;cursor:not-allowed}
+.fname .px{color:var(--yellow);margin-left:6px}
 .fname{color:var(--ink2);font-size:13px;max-width:28vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---------- 布局 ---------- */
 .app{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;padding:0 20px 16px;height:calc(100% - 56px)}
 .main{display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0}
-.side{display:flex;flex-direction:column;gap:10px;min-height:0}
+.side{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto}
 
 /* 记分牌 */
 .isb{flex:none;height:50px;border-radius:14px;background:var(--sb);color:#fff;display:flex;align-items:center;gap:12px;padding:0 10px 0 16px;font-size:17px;font-weight:650}
@@ -120,7 +121,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stro
 
 /* 选手卡 */
 .cards{flex:1;display:flex;flex-direction:column;gap:10px;min-height:0}
-.cd{flex:1;min-height:150px;background:var(--card);border-radius:20px;position:relative;display:flex;flex-direction:column;align-items:center;padding:12px 10px 56px;border:2px solid transparent;cursor:pointer;user-select:none}
+.cd{flex:1 0 auto;min-height:190px;background:var(--card);border-radius:20px;position:relative;display:flex;flex-direction:column;align-items:center;padding:12px 10px 56px;border:2px solid transparent;cursor:pointer;user-select:none}
 .cd .nm{font-size:15px;font-weight:650;display:flex;align-items:center;gap:6px;max-width:100%}
 .cd .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cd .nm i{width:8px;height:8px;border-radius:50%;background:var(--yellow);flex:none}
@@ -171,6 +172,7 @@ dialog h3 .x{margin-left:auto;width:32px;height:32px;border-radius:50%;backgroun
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);min-height:48px;border-radius:16px;background:#F5F7FA;color:#111418;display:flex;align-items:center;gap:10px;padding:0 6px 0 16px;font-size:15px;font-weight:600;box-shadow:0 10px 24px rgba(0,0,0,.5);z-index:50;max-width:calc(100% - 24px)}
 .toast .u{height:36px;padding:0 14px;border-radius:12px;background:#E3E9F5;color:#2B5FCC;font-weight:700}
 
+@media (min-width:861px) and (max-height:820px){ .keys{display:none} }
 /* ---------- 手机竖屏 ---------- */
 @media (max-width:860px){
   body{overflow:auto;height:auto}
@@ -226,6 +228,12 @@ dialog h3 .x{margin-left:auto;width:32px;height:32px;border-radius:50%;backgroun
         <p>打开一场比赛录像。按「发球」打回合起点（往前留 0.5 秒），按谁得分就在这一帧打终点。记完可以直接按回合剪出视频。</p>
         <button class="pl p" id="openBtn2">选择视频文件</button>
         <p style="font-size:12px">也可以把视频拖进来 · 视频不会上传，全部在本机处理</p>
+      </div>
+      <div class="empty hidden" id="codecTip" style="background:rgba(0,0,0,.88);z-index:4">
+        <b>只有声音，没有画面</b>
+        <p id="codecMsg"></p>
+        <button class="pl p" id="proxyBtn">转一份能看的预览版</button>
+        <p style="font-size:12px">在本机转码，不上传。转好后用预览版看和记分，<b style="font-size:12px">导出时仍然从原片剪</b>，画质不受影响。<br>以后想省掉这步：iPhone「设置 → 相机 → 格式」选「兼容性最佳」。</p>
       </div>
       <div class="drop hidden" id="drop">松手打开视频</div>
     </div>
@@ -482,7 +490,8 @@ function playRally(i) {
 function openFile(f) {
   if (!f) return;
   if (V.src.startsWith('blob:')) URL.revokeObjectURL(V.src);
-  file = f;
+  file = f; proxyOn = false; origH = 0;
+  $('#codecTip').classList.add('hidden');
   V.src = URL.createObjectURL(f);
   key = 'sc.' + f.name + ':' + f.size;
   let saved = null;
@@ -499,8 +508,23 @@ function openFile(f) {
   if (saved && saved.rallies.length) toast(`已恢复 ${saved.rallies.length} 个回合`);
   else if (!saved) setTimeout(() => openSettings(), 200);
 }
-V.addEventListener('error', () => { if (file) toast('这个浏览器放不了这个视频格式（试试 Chrome，或转成 MP4）'); });
-V.addEventListener('loadedmetadata', render);
+let proxyOn = false, origH = 0;
+function codecProblem(kind) {
+  if (!file || proxyOn) return;
+  const isMov = /\.mov$/i.test(file.name);
+  $('#codecMsg').textContent = kind === 'error'
+    ? '这个浏览器打不开这个视频文件（格式或编码不支持）。可以先转一份预览版试试。'
+    : `浏览器能读到声音，但解不了画面编码${isMov ? '——多半是 iPhone 默认的「高效」HEVC 格式' : '（多半是 HEVC / H.265）'}。Chrome 能不能放 HEVC 取决于电脑显卡和系统，Mac 上的 Safari 一般可以直接放。`;
+  $('#codecTip').classList.remove('hidden');
+  V.pause();
+}
+V.addEventListener('error', () => codecProblem('error'));
+V.addEventListener('loadedmetadata', () => {
+  render();
+  if (!V.videoWidth) codecProblem('novideo');
+  else if (V.paused && V.currentTime === 0) { try { V.currentTime = 0.001; } catch {} } // iOS Safari 不播不出首帧
+});
+$('#proxyBtn').onclick = () => makeProxy();
 
 /* ================= 渲染 ================= */
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -808,7 +832,7 @@ async function ensureFF(status) {
   status('启动剪辑引擎…', 1);
   ff = new Worker(URL.createObjectURL(new Blob([$('#ffWorkerSrc').textContent], { type: 'text/javascript' })));
   ff.onmessage = ({ data }) => {
-    if (data.type === 'log') { $('#expLog').textContent = data.data.message.slice(0, 160); return; }
+    if (data.type === 'log') { const m = data.data.message; $('#expLog').textContent = m.slice(0, 160); const r = !origH && m.match(/Video: .*?(\d{3,5})x(\d{3,5})/); if (r) origH = +r[2]; return; }
     if (data.type === 'progress') { ffProgress && ffProgress(data.data.progress); return; }
     const w = ffWait[data.id]; if (!w) return; delete ffWait[data.id];
     data.ok ? w.res(data.ret) : w.rej(new Error(data.err));
@@ -820,7 +844,7 @@ function killFF() { if (ff) { ff.terminate(); ff = null; } Object.values(ffWait)
 
 // 用 canvas 画字幕图片，再用 overlay 叠上去（不依赖字体文件）
 async function subPNG(type) {
-  const h = V.videoHeight || 720;
+  const h = (proxyOn ? origH : V.videoHeight) || 720;
   const fs = Math.round(h * SUB_SIZE[M.cfg.subSize]);
   const c = document.createElement('canvas'), x = c.getContext('2d');
   x.font = `800 ${fs}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
@@ -950,6 +974,53 @@ async function runExport(mode, only) {
     killFF();
     $('#expCancel').textContent = '关闭';
     $('#expCancel').onclick = () => { $('#expDlg').close(); $('#expCancel').textContent = '取消'; $('#expCancel').onclick = () => { cancelled = true; killFF(); }; };
+  } finally { ffProgress = null; }
+}
+
+
+/* ================= 预览版：HEVC 等解不了画面时，本机转一份 360p H.264 ================= */
+async function makeProxy() {
+  if (!file) return;
+  const orig = file;
+  $('#expDlg').showModal();
+  $('#expForm').classList.add('hidden'); $('#expRun').classList.remove('hidden');
+  $('#expSum').textContent = '转预览版';
+  const t0 = performance.now();
+  const stage = (t, p) => { $('#expStage').textContent = t; if (p != null) $('#expBar').style.width = (p * 100).toFixed(1) + '%'; };
+  const done = (msg) => {
+    stage(msg, null);
+    $('#expCancel').textContent = '关闭';
+    $('#expCancel').onclick = () => { $('#expDlg').close(); $('#expCancel').textContent = '取消'; $('#expCancel').onclick = () => { cancelled = true; killFF(); }; };
+  };
+  cancelled = false;
+  try {
+    await ensureFF(stage);
+    await ffCall('unmount'); await ffCall('mount', { file: orig });
+    const dur = V.duration || 0;
+    ffProgress = p => {
+      p = Math.max(0, Math.min(1, p));
+      const el = (performance.now() - t0) / 1000, eta = p > 0.02 ? el / p - el : 0;
+      stage(`转码中 ${(p * 100).toFixed(0)}%${eta ? ` · 还要约 ${fmt(eta)}` : ''}${dur ? `（视频 ${fmt(dur)}）` : ''}`, p);
+    };
+    stage('转码中…', 0);
+    const rc = await ffCall('exec', { args: ['-i', '/in/' + orig.name, '-map', '0:v:0', '-map', '0:a:0?', '-vf', 'scale=-2:360',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'fastdecode', '-crf', '30', '-g', '30', '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac', '-b:a', '64k', '-movflags', '+faststart', '/proxy.mp4'] });
+    if (rc !== 0) throw new Error('ffmpeg 返回 ' + rc);
+    const bytes = await ffCall('read', { path: '/proxy.mp4' }); await ffCall('rm', { path: '/proxy.mp4' });
+    await ffCall('unmount');
+    if (file !== orig) return done('已换了别的视频，预览版作废');
+    proxyOn = true;
+    const t = V.currentTime;
+    if (V.src.startsWith('blob:')) URL.revokeObjectURL(V.src);
+    V.src = URL.createObjectURL(new Blob([bytes], { type: 'video/mp4' }));
+    V.addEventListener('loadedmetadata', () => { V.currentTime = t; }, { once: true });
+    $('#codecTip').classList.add('hidden');
+    $('#fname').innerHTML = esc(orig.name) + '<span class="px">预览版</span>';
+    done(`转好了 ✓ 用时 ${fmt((performance.now() - t0) / 1000)}。刷新页面会失效，需要重新转。`);
+  } catch (err) {
+    killFF();
+    done(cancelled ? '已取消' : '转码失败：' + err.message);
   } finally { ffProgress = null; }
 }
 
